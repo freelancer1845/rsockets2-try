@@ -176,6 +176,15 @@ class RSocket(object):
             self.socket.send_frame(request.to_bytes())
         return rx.create(subscription)
 
+    def fire_and_forget(self, meta_data, data) -> rx.Observable:
+        def action():
+            frame = frames.RequestFNF()
+            frame.meta_data = meta_data
+            frame.request_data = data
+            frame.stream_id = self._get_new_stream_id()
+            self.socket.send_frame(frame.to_bytes())
+        return rx.from_callable(lambda: action(), scheduler=self._scheduler).pipe(op.ignore_elements())
+
     def _negotiate(self):
         setupFrame = frames.SetupFrame()
 
