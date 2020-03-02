@@ -37,7 +37,49 @@ class Payload(object):
         return frame
 
     def to_bytes(self):
-        raise NotImplementedError()
+        if self.stream_id == 0:
+            raise ValueError("Stream ID must be set!")
+
+        bufferSize = 6
+
+        if self.meta_data != None:
+            bufferSize += 3
+            bufferSize += len(self.meta_data)
+
+        bufferSize += len(self.payload)
+
+        data = bytearray(bufferSize)
+
+        struct.pack_into(">I", data, 0, self.stream_id)
+        dataWritten = 4
+        type_and_flags = FrameType.PAYLOAD << 10
+
+        if self.meta_data != None:
+            type_and_flags |= (1 << 8)
+        if self.next_present:
+            type_and_flags |= (1 << 5)
+        if self.complete:
+            type_and_flags |= (1 << 6)
+        if self.follows:
+            type_and_flags |= (1 << 7)
+        type_and_flags = type_and_flags
+        struct.pack_into(">H", data, dataWritten, type_and_flags)
+        dataWritten += 2
+
+        if self.meta_data != None:
+            meta_data_length = len(self.meta_data)
+            data[dataWritten] = meta_data_length >> 16 & 0xFF
+            dataWritten += 1
+            data[dataWritten] = meta_data_length >> 8 & 0xFF
+            dataWritten += 1
+            data[dataWritten] = meta_data_length & 0xFF
+            dataWritten += 1
+            data[dataWritten:(dataWritten + meta_data_length)] = self.meta_data
+            dataWritten += meta_data_length
+
+        data[dataWritten:] = self.payload
+        print("Constructed bytes from payload")
+        return data
 
     @staticmethod
     def from_fragments(fragments: []):

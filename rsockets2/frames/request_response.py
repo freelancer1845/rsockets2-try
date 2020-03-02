@@ -20,13 +20,13 @@ class RequestResponse(object):
         frame.stream_id = stream_id
         frame.meta_data_present = flags >> 8 & 1 == 1
         if frame.meta_data_present:
-            metaDataLength = struct.unpack_from(">I", full_data, data_read)
+            metaDataLength, = struct.unpack_from(">I", full_data, data_read)
             data_read += 4
             metaDataLength = metaDataLength >> 8 & 0xFFFFFF
             frame.meta_data = full_data[data_read:(data_read + metaDataLength)]
             data_read += metaDataLength
         
-        self.request_data = full_data[data_read:]
+        frame.request_data = full_data[data_read:]
         return frame
 
     def to_bytes(self):

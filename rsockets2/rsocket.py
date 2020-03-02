@@ -8,6 +8,7 @@ import rx.operators as op
 import logging
 import threading
 import time
+import typing
 
 MAJOR_VERSION = 1
 MINOR_VERSION = 0
@@ -47,11 +48,16 @@ class RSocket(object):
         # Subjects
         self._keepalive_subject = rx.subject.Subject()
         self._connection_error_subject = rx.subject.Subject()
-        self._request_response_subject = rx.subject.Subject()
         self._payload_subject = rx.subject.Subject()
         self._application_error_subject = rx.subject.Subject()
 
         self._fragmented_frames = {}
+
+        # Callbacks
+
+        # The callback takes the Request_Response frame and must return an Observable emitting 'bytes' objects
+        self.on_request_response: typing.Callable[[
+            frames.Payload], rx.Observable] = None
 
         # keeaplive
         self._keepalive_sender = threading.Thread(
@@ -207,7 +213,40 @@ class RSocket(object):
             else:
                 self._connection_error_subject.on_next(frame)
         if isinstance(frame, frames.RequestResponse):
-            self._request_response_subject.on_next(frame)
+            if self.on_request_response == None:
+                self._log.error(
+                    "No Request Response Handler created. This should be reported to the requester!")
+            else:
+                def on_next(value):
+                    answer = frames.Payload()
+                    answer.stream_id = frame.stream_id
+                    answer.follows = False
+                    answer.complete = True
+                    answer.next_present = True
+                    answer.payload = value
+                    answer.meta_data = bytes(0)
+                    print("Sending Payload")
+                    self.socket.send_frame(answer.to_bytes())
+
+                def on_error(value):
+                    print("Handleing Error")
+                    error = frames.ErrorFrame()
+                    error.stream_id = frame.stream_id
+                    print("Converting exception")
+                    error.error_code = frames.ErrorCodes.APPLICATION_ERROR
+                    if isinstance(value, Exception):
+                        print(str(value))
+                        error.error_data = str(value).encode("ASCII")
+                    else:
+                        error.error_data = value
+                    print("Sending Error")
+                    self.socket.send_frame(error.to_bytes())
+
+                def on_complete():
+                    pass
+
+                self.on_request_response(frame).pipe(op.observe_on(self._scheduler)).subscribe(
+                    on_next=on_next, on_error=on_error, on_completed=on_complete)
         if isinstance(frame, frames.Payload):
             if frame.follows == True:
                 if frame.stream_id not in self._fragmented_frames:

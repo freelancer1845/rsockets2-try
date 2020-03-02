@@ -44,4 +44,24 @@ class ErrorFrame(object):
         return frame
 
     def to_bytes(self):
-        raise NotImplementedError()
+        if self.stream_id == 0:
+            raise ValueError("Stream ID must be set!")
+
+        bufferSize = 6
+
+        bufferSize += 4  # Error Codes
+        bufferSize += len(self.error_data)
+
+        data = bytearray(bufferSize)
+
+        struct.pack_into(">I", data, 0, self.stream_id)
+        dataWritten = 4
+        type_and_flags = FrameType.ERROR << 10
+        struct.pack_into(">H", data, dataWritten, type_and_flags)
+        dataWritten += 2
+        struct.pack_into(">I", data, dataWritten, self.error_code)
+        dataWritten += 4
+
+        data[dataWritten:] = self.error_data
+        print("Constructed bytes from error")
+        return data

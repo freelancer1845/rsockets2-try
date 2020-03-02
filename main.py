@@ -12,6 +12,8 @@ import queue
 import logging
 import time
 import json
+import rx
+import struct
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -20,6 +22,12 @@ if __name__ == "__main__":
 
     socket = RSocket(socket_type=SocketType.TCP_SOCKET, keepalive=10000, maxlive=10000,
                      hostname='localhost', port=24512)
+
+    def request_response_handler(frame: RequestResponse):
+        print("Request response received")
+        return rx.throw(Exception("Test Exception"))
+        # return rx.just("100".encode('ASCII'))
+    socket.on_request_response = request_response_handler
     try:
         socket.open()
         time.sleep(1.0)
@@ -36,13 +44,13 @@ if __name__ == "__main__":
             needed = time.time() - start
             print("Received --- {}mb Needed: {}s Speed: {}mb/s".format(total_size /
                                                                        1000000, needed, total_size / 1000000 / needed))
-        socket.request_response(meta_data=b'test.bigdata', data=bytes(0)).subscribe(on_next=lambda x: adder(
-            x), on_error=lambda err: print("Oh my god it failed: {}".format(err)), on_completed=on_complete)
-        print("Received --- {}mb".format(total_size / 1000000))
-        for i in range(10):
-            socket.request_stream(meta_data=b'test.bigdatas', data=bytes(0)).subscribe(on_next=lambda x: print(
-                "Received Size: {} mb".format(len(x) / 1000000.0)), on_error=lambda err: print("Oh my god it failed: {}".format(err)), on_completed=lambda: print("Complete"))
-        time.sleep(30)
+        # socket.request_response(meta_data=b'test.bigdata', data=bytes(0)).subscribe(on_next=lambda x: adder(
+            # x), on_error=lambda err: print("Oh my god it failed: {}".format(err)), on_completed=on_complete)
+        # print("Received --- {}mb".format(total_size / 1000000))
+        # for i in range(10):
+            # socket.request_stream(meta_data=b'test.bigdatas', data=bytes(0)).subscribe(on_next=lambda x: print(
+            # "Received Size: {} mb".format(len(x) / 1000000.0)), on_error=lambda err: print("Oh my god it failed: {}".format(err)), on_completed=lambda: print("Complete"))
+        # time.sleep(30)
         socket.request_stream(meta_data=b'test.bigdatas', data=bytes(0)).subscribe(on_next=lambda x: print(
             "Received Size: {} mb".format(len(x) / 1000000.0)), on_error=lambda err: print("Oh my god it failed: {}".format(err)), on_completed=lambda: print("Complete"))
         # request_data = {
