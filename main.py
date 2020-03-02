@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 if __name__ == "__main__":
 
-    socket = RSocket(socket_type=SocketType.TCP_SOCKET, keepalive=30000,
+    socket = RSocket(socket_type=SocketType.TCP_SOCKET, keepalive=10000, maxlive=10000,
                      hostname='localhost', port=24512)
     try:
         socket.open()
@@ -42,7 +42,7 @@ if __name__ == "__main__":
         for i in range(10):
             socket.request_stream(meta_data=b'test.bigdatas', data=bytes(0)).subscribe(on_next=lambda x: print(
                 "Received Size: {} mb".format(len(x) / 1000000.0)), on_error=lambda err: print("Oh my god it failed: {}".format(err)), on_completed=lambda: print("Complete"))
-        time.sleep(10)
+        time.sleep(30)
         socket.request_stream(meta_data=b'test.bigdatas', data=bytes(0)).subscribe(on_next=lambda x: print(
             "Received Size: {} mb".format(len(x) / 1000000.0)), on_error=lambda err: print("Oh my god it failed: {}".format(err)), on_completed=lambda: print("Complete"))
         # request_data = {

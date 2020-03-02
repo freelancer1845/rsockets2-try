@@ -22,7 +22,7 @@ class RSocket(object):
     def __init__(self,
                  socket_type: SocketType,
                  keepalive=30000,
-                 maxlive=1000,
+                 maxlive=10000,
                  meta_data_mime_type=b"message/x.rsocket.routing.v0",
                  data_mime_type=b"application/json",
                  *args,
