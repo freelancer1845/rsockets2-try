@@ -25,8 +25,8 @@ if __name__ == "__main__":
 
     def request_response_handler(frame: RequestResponse):
         print("Request response received")
-        return rx.throw(Exception("Test Exception"))
-        # return rx.just("100".encode('ASCII'))
+        # return rx.throw(Exception("Test Exception"))
+        return rx.just("100".encode('ASCII'))
     socket.on_request_response = request_response_handler
     try:
         socket.open()

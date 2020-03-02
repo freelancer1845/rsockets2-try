@@ -78,7 +78,6 @@ class Payload(object):
             dataWritten += meta_data_length
 
         data[dataWritten:] = self.payload
-        print("Constructed bytes from payload")
         return data
 
     @staticmethod

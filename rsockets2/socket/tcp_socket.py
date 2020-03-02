@@ -139,4 +139,3 @@ class RTcpSocket(Socket_ABC):
                         if self._recv_handler != None:
                             self._recv_handler(current_frame)
                         self._recvstate = RecvStatus.LENGTH_BYTE_0
-                        print("Frame Received")

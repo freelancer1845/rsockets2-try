@@ -63,5 +63,4 @@ class ErrorFrame(object):
         dataWritten += 4
 
         data[dataWritten:] = self.error_data
-        print("Constructed bytes from error")
         return data

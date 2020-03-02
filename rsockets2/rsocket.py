@@ -225,21 +225,16 @@ class RSocket(object):
                     answer.next_present = True
                     answer.payload = value
                     answer.meta_data = bytes(0)
-                    print("Sending Payload")
                     self.socket.send_frame(answer.to_bytes())
 
                 def on_error(value):
-                    print("Handleing Error")
                     error = frames.ErrorFrame()
                     error.stream_id = frame.stream_id
-                    print("Converting exception")
                     error.error_code = frames.ErrorCodes.APPLICATION_ERROR
                     if isinstance(value, Exception):
-                        print(str(value))
                         error.error_data = str(value).encode("ASCII")
                     else:
                         error.error_data = value
-                    print("Sending Error")
                     self.socket.send_frame(error.to_bytes())
 
                 def on_complete():
