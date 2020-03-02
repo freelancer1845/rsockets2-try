@@ -12,7 +12,12 @@ class RequestNFrame(object):
 
     @staticmethod
     def from_data(stream_id: int, flags: int, full_data: bytes):
-        raise NotImplementedError()
+        frame = RequestNFrame()
+
+        data_read = 6
+        frame.stream_id = stream_id
+        frame.n = struct.unpack_from(">I", full_data, data_read)
+        return frame
 
     def to_bytes(self):
         if self.stream_id == 0:

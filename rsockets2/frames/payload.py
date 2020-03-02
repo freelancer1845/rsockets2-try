@@ -1,4 +1,4 @@
-from .common import FrameType
+from .common import FrameType, read_meta_data_length
 import struct
 import typing
 
@@ -27,9 +27,8 @@ class Payload(object):
         frame.complete = flags >> 6 & 1 == 1
         frame.follows = flags >> 7 & 1 == 1
         if frame.meta_data_present:
-            metaDataLength = struct.unpack_from(">I", full_data, data_read)
+            metaDataLength = read_meta_data_length(full_data, data_read)
             data_read += 3
-            metaDataLength = metaDataLength >> 8 & 0xFFFFFF
             frame.meta_data = full_data[data_read:(data_read + metaDataLength)]
             data_read += metaDataLength
 

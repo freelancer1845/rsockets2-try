@@ -1,4 +1,4 @@
-from .common import FrameType
+from .common import FrameType, read_meta_data_length
 import struct
 
 
@@ -20,14 +20,18 @@ class RequestStream(object):
         data_read = 6
         frame.stream_id = stream_id
         frame.meta_data_present = flags >> 8 & 1 == 1
+
+        frame.initial_request, = struct.unpack_from(">I", full_data, data_read)
+        data_read += 4
+
+
         if frame.meta_data_present:
-            metaDataLength = struct.unpack_from(">I", full_data, data_read)
-            data_read += 4
-            metaDataLength = metaDataLength >> 8 & 0xFFFFFF
+            metaDataLength = read_meta_data_length(full_data, data_read)
+            data_read += 3
             frame.meta_data = full_data[data_read:(data_read + metaDataLength)]
             data_read += metaDataLength
 
-        self.request_data = full_data[data_read:]
+        frame.request_data = full_data[data_read:]
         return frame
 
     def to_bytes(self):

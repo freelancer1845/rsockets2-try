@@ -4,7 +4,10 @@ from .error import ErrorFrame
 from .common import FrameType
 from .payload import Payload
 from .request_response import RequestResponse
+from .request_stream import RequestStream
 from .keepalive import KeepAliveFrame
+from .request_n import RequestNFrame
+from .request_fnf import RequestFNF
 import struct
 from typing import Union
 
@@ -23,8 +26,14 @@ class FrameParser(object):
             return ErrorFrame.from_data(stream_id, flags, data)
         elif frame_type == FrameType.REQUEST_RESPONSE:
             return RequestResponse.from_data(stream_id, flags, data)
+        elif frame_type == FrameType.REQUEST_STREAM:
+            return RequestStream.from_data(stream_id, flags, data)
         elif frame_type == FrameType.KEEPALIVE:
             return KeepAliveFrame.from_data(stream_id, flags, data)
+        elif frame_type == FrameType.REQUEST_N:
+            return RequestNFrame.from_data(stream_id, flags, data)
+        elif frame_type == FrameType.REQUEST_FNF:
+            return RequestFNF.from_data(stream_id, flags, data)
         else:
             raise ValueError("Unsupported Frame Type: {}".format(frame_type))
 

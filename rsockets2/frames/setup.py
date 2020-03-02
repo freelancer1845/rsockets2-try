@@ -1,4 +1,4 @@
-from .common import FrameType
+from .common import FrameType, read_meta_data_length
 import struct
 
 
@@ -52,9 +52,8 @@ class SetupFrame(object):
             data_read + mime_length)].decode('US-ASCII')
 
         if flags >> 8 & 1 == 1:
-            metaDataLength = struct.unpack_from(">I", full_data, data_read)
-            data_read += 4
-            metaDataLength = metaDataLength >> 8 & 0xFFFFFF
+            metaDataLength = read_meta_data_length(full_data, data_read)
+            data_read += 3
             frame.meta_data = full_data[data_read:(data_read + metaDataLength)]
             data_read += metaDataLength
 

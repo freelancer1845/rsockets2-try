@@ -2,7 +2,7 @@ from .common import FrameType, read_meta_data_length
 import struct
 
 
-class RequestResponse(object):
+class RequestFNF(object):
 
     def __init__(self):
         super().__init__()
@@ -14,7 +14,7 @@ class RequestResponse(object):
 
     @staticmethod
     def from_data(stream_id: int, flags: int, full_data: bytes):
-        frame = RequestResponse()
+        frame = RequestFNF()
 
         data_read = 6
         frame.stream_id = stream_id
@@ -24,7 +24,7 @@ class RequestResponse(object):
             data_read += 3
             frame.meta_data = full_data[data_read:(data_read + metaDataLength)]
             data_read += metaDataLength
-        
+
         frame.request_data = full_data[data_read:]
         return frame
 
@@ -32,7 +32,7 @@ class RequestResponse(object):
         if self.stream_id == 0:
             raise ValueError("Stream ID must be set!")
 
-        bufferSize = 10
+        bufferSize = 6
 
         if self.meta_data != None:
             bufferSize += 3
@@ -44,7 +44,7 @@ class RequestResponse(object):
 
         struct.pack_into(">I", data, 0, self.stream_id)
         dataWritten = 4
-        type_and_flags = FrameType.REQUEST_RESPONSE << 10
+        type_and_flags = FrameType.REQUEST_FNF << 10
         if self.meta_data != None:
             type_and_flags |= (1 << 8)
         type_and_flags = type_and_flags

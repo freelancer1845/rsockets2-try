@@ -9,6 +9,7 @@ import logging
 import threading
 import time
 import typing
+import rsockets2.handler as handler
 
 MAJOR_VERSION = 1
 MINOR_VERSION = 0
@@ -54,10 +55,12 @@ class RSocket(object):
         self._fragmented_frames = {}
 
         # Callbacks
-
-        # The callback takes the Request_Response frame and must return an Observable emitting 'bytes' objects
         self.on_request_response: typing.Callable[[
-            frames.Payload], rx.Observable] = None
+            frames.RequestResponse], rx.Observable] = None
+        self.on_request_stream: typing.Callable[[
+            frames.RequestStream], rx.Observable] = None
+        self.on_fire_and_forget: typing.Callable[[
+            frames.RequestFNF], None] = None
 
         # keeaplive
         self._keepalive_sender = threading.Thread(
@@ -207,42 +210,43 @@ class RSocket(object):
         frame = self._parser.parseFrame(data=rawFrame)
         if isinstance(frame, frames.KeepAliveFrame):
             self._keepalive_subject.on_next(frame)
-        if isinstance(frame, frames.ErrorFrame):
+        elif isinstance(frame, frames.ErrorFrame):
             if frame.error_code == frames.ErrorCodes.APPLICATION_ERROR:
                 self._application_error_subject.on_next(frame)
             else:
                 self._connection_error_subject.on_next(frame)
-        if isinstance(frame, frames.RequestResponse):
+        elif isinstance(frame, frames.RequestResponse):
             if self.on_request_response == None:
                 self._log.error(
                     "No Request Response Handler created. This should be reported to the requester!")
             else:
-                def on_next(value):
-                    answer = frames.Payload()
-                    answer.stream_id = frame.stream_id
-                    answer.follows = False
-                    answer.complete = True
-                    answer.next_present = True
-                    answer.payload = value
-                    answer.meta_data = bytes(0)
-                    self.socket.send_frame(answer.to_bytes())
+                observable = self.on_request_response(frame)
+                if isinstance(observable, rx.Observable) == False:
+                    raise ValueError(
+                        "Request Response Handler must return an Observable!")
+                observable.pipe(op.observe_on(self._scheduler)).subscribe(
+                    handler.RequestResponseHandler(frame.stream_id, self.socket))
+        elif isinstance(frame, frames.RequestStream):
+            if self.on_request_stream == None:
+                self._log.error(
+                    "No Request Stream Handler created. This should be reported to the requester!")
+            elif frame.initial_request < 2**31 - 1:
+                errorframe = frames.ErrorFrame()
+                errorframe.stream_id = frame.stream_id
+                errorframe.error_code = frames.ErrorCodes.APPLICATION_ERROR
+                errorframe.error_data = b"Currently does not support Backpressure. Initial Requests must be 2^31"
+                self.socket.send_frame(errorframe.to_bytes())
+            else:
+                observable = self.on_request_stream(frame)
+                if isinstance(observable, rx.Observable) == False:
+                    raise ValueError(
+                        "Request Stream Handler must return an Observable!")
+                observable.pipe(
+                    op.observe_on(self._scheduler),
+                ).subscribe(
+                    handler.RequestStreamHandler(frame.stream_id, self.socket))
 
-                def on_error(value):
-                    error = frames.ErrorFrame()
-                    error.stream_id = frame.stream_id
-                    error.error_code = frames.ErrorCodes.APPLICATION_ERROR
-                    if isinstance(value, Exception):
-                        error.error_data = str(value).encode("ASCII")
-                    else:
-                        error.error_data = value
-                    self.socket.send_frame(error.to_bytes())
-
-                def on_complete():
-                    pass
-
-                self.on_request_response(frame).pipe(op.observe_on(self._scheduler)).subscribe(
-                    on_next=on_next, on_error=on_error, on_completed=on_complete)
-        if isinstance(frame, frames.Payload):
+        elif isinstance(frame, frames.Payload):
             if frame.follows == True:
                 if frame.stream_id not in self._fragmented_frames:
                     self._fragmented_frames = []
@@ -253,6 +257,18 @@ class RSocket(object):
                 else:
                     fragmented_frames = self._fragmented_frames[frame.stream_id]
                     del self._fragmented_frames[frames.stream_id]
+
+        elif isinstance(frame, frames.RequestNFrame):
+            errorframe = frames.ErrorFrame()
+            errorframe.stream_id = frame.stream_id
+            errorframe.error_code = frames.ErrorCodes.APPLICATION_ERROR
+            errorframe.error_data = b"Currently does not support Backpressure."
+            self.socket.send_frame(errorframe.to_bytes())
+
+        elif isinstance(frame, frames.RequestFNF):
+            def runner(eventloop, state):
+                self.on_fire_and_forget(frame)
+            self._scheduler.invoke_action(runner, state=None)
 
     def _setup_basic_observer(self):
 

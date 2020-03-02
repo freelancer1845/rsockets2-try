@@ -2,7 +2,6 @@ from enum import IntEnum
 import struct
 
 
-
 class FrameType(IntEnum):
     RESERVED = 0x00
     SETUP = 0x01
@@ -22,3 +21,8 @@ class FrameType(IntEnum):
     EXT = 0x3F
 
 
+def read_meta_data_length(data, offset):
+    meta_data_length = data[offset] & 0xFF << 16
+    meta_data_length |= data[offset + 1] & 0xFF << 8
+    meta_data_length |= data[offset + 2] & 0xFF
+    return meta_data_length

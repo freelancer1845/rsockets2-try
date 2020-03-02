@@ -7,6 +7,7 @@ from rsockets2.frames.payload import Payload
 from rsockets2.frames.request_stream import RequestStream
 from rsockets2.frames.request_response import RequestResponse
 from rsockets2.frames.request_n import RequestNFrame
+from rsockets2.frames import RequestFNF
 from rsockets2 import RSocket, SocketType
 import queue
 import logging
@@ -24,10 +25,16 @@ if __name__ == "__main__":
                      hostname='localhost', port=24512)
 
     def request_response_handler(frame: RequestResponse):
-        print("Request response received")
-        # return rx.throw(Exception("Test Exception"))
-        return rx.just("100".encode('ASCII'))
+        return rx.just("5".encode('ASCII'))
     socket.on_request_response = request_response_handler
+
+    def request_stream_handler(frame: RequestStream):
+        return rx.of("3".encode('ASCII'), "3".encode('ASCII'), "3".encode('ASCII'))
+    socket.on_request_stream = request_stream_handler
+
+    def fire_and_forget_handler(frame: RequestFNF):
+        print("Received Fire And Forget!")
+    socket.on_fire_and_forget = fire_and_forget_handler
     try:
         socket.open()
         time.sleep(1.0)
