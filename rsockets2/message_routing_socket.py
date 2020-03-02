@@ -85,7 +85,6 @@ class RMessageSocket(object):
             return rx.throw(Exception("Unknown Destination '{}'".format(route_name)))
 
     def _on_request_response(self, frame: frames.RequestResponse):
-        print("On Request Response")
         route_name = self._get_route_name(frame.meta_data)
         if route_name in self._request_handler:
             return self._request_handler[route_name](
