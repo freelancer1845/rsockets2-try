@@ -4,6 +4,7 @@ import logging
 import json
 import typing
 import rx
+import rx.operators as op
 
 
 class RMessageSocket(object):
@@ -27,7 +28,7 @@ class RMessageSocket(object):
 
         if data_mime_type == b"application/json":
             self.decoder = lambda x: json.loads(x, encoding='UTF-8')
-            self.encoder = lambda x: json.dumps(x)
+            self.encoder = lambda x: json.dumps(x).encode('UTF-8')
 
         self._stream_handler = {}
         self._request_handler = {}
@@ -79,16 +80,16 @@ class RMessageSocket(object):
     def _on_request_stream(self, frame: frames.RequestStream):
         route_name = self._get_route_name(frame.meta_data)
         if route_name in self._stream_handler:
-            return self._stream_handler[route_name](
-                self.decoder(frame.request_data))
+            return self._stream_handler[route_name](self.decoder(frame.request_data)).pipe(op.map(self.encoder))
         else:
             return rx.throw(Exception("Unknown Destination '{}'".format(route_name)))
 
     def _on_request_response(self, frame: frames.RequestResponse):
+        print("On Request Response")
         route_name = self._get_route_name(frame.meta_data)
         if route_name in self._request_handler:
             return self._request_handler[route_name](
-                self.decoder(frame.request_data))
+                self.decoder(frame.request_data)).pipe(op.map(self.encoder))
         else:
             return rx.throw(Exception("Unknown Destination '{}'".format(route_name)))
 
