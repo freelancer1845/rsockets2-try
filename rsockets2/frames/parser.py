@@ -37,10 +37,6 @@ class FrameParser(object):
         else:
             raise ValueError("Unsupported Frame Type: {}".format(frame_type))
 
-    # def toFrame(self, frame: Union[SetupFrame]):
-
-    #     if isinstance(frame, SetupFrame):
-
     def _parse_frame_header(self, data: bytes, stream_id_required):
         if stream_id_required == True:
             stream_id, type_and_flags = struct.unpack_from(
