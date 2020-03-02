@@ -8,6 +8,7 @@ from .request_stream import RequestStream
 from .keepalive import KeepAliveFrame
 from .request_n import RequestNFrame
 from .request_fnf import RequestFNF
+from .cancel import CancelFrame
 import struct
 from typing import Union
 
@@ -34,6 +35,8 @@ class FrameParser(object):
             return RequestNFrame.from_data(stream_id, flags, data)
         elif frame_type == FrameType.REQUEST_FNF:
             return RequestFNF.from_data(stream_id, flags, data)
+        elif frame_type == FrameType.CANCEL:
+            return CancelFrame.from_data(stream_id, flags, data)
         else:
             raise ValueError("Unsupported Frame Type: {}".format(frame_type))
 

@@ -51,6 +51,7 @@ class RSocket(object):
         self._connection_error_subject = rx.subject.Subject()
         self._payload_subject = rx.subject.Subject()
         self._application_error_subject = rx.subject.Subject()
+        self._cancel_subject = rx.subject.Subject()
 
         self._fragmented_frames = {}
 
@@ -233,7 +234,10 @@ class RSocket(object):
                 if isinstance(observable, rx.Observable) == False:
                     raise ValueError(
                         "Request Response Handler must return an Observable!")
-                observable.pipe(op.observe_on(self._scheduler)).subscribe(
+                observable.pipe(op.observe_on(self._scheduler),
+                                op.take_until(self._cancel_subject.pipe(
+                                    op.filter(lambda f: f.stream_id == frame.stream_id)))
+                                ).subscribe(
                     handler.RequestResponseHandler(frame.stream_id, self.socket))
         elif isinstance(frame, frames.RequestStream):
             if self.on_request_stream == None:
@@ -252,6 +256,8 @@ class RSocket(object):
                         "Request Stream Handler must return an Observable!")
                 observable.pipe(
                     op.subscribe_on(self._scheduler),
+                    op.take_until(self._cancel_subject.pipe(
+                        op.filter(lambda f: f.stream_id == frame.stream_id)))
                 ).subscribe(
                     handler.RequestStreamHandler(frame.stream_id, self.socket))
 
@@ -278,6 +284,9 @@ class RSocket(object):
             def runner(eventloop, state):
                 self.on_fire_and_forget(frame)
             self._scheduler.invoke_action(runner, state=None)
+
+        elif isinstance(frame, frames.CancelFrame):
+            self._cancel_subject.on_next(frame)
 
     def _setup_basic_observer(self):
 
