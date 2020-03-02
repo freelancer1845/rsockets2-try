@@ -40,7 +40,7 @@ class RSocket(object):
         self.data_mime_type = data_mime_type
 
         self._parser = frames.FrameParser()
-        self._scheduler = rx.scheduler.ThreadPoolScheduler(10)
+        self._scheduler = rx.scheduler.ThreadPoolScheduler(20)
 
         self._last_stream_id = 0
         self._used_stream_ids = []
@@ -251,7 +251,7 @@ class RSocket(object):
                     raise ValueError(
                         "Request Stream Handler must return an Observable!")
                 observable.pipe(
-                    op.observe_on(self._scheduler),
+                    op.subscribe_on(self._scheduler),
                 ).subscribe(
                     handler.RequestStreamHandler(frame.stream_id, self.socket))
 
