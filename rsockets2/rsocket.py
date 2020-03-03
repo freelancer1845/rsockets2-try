@@ -1,4 +1,4 @@
-from .socket import RTcpSocket, Socket_ABC
+from .socket import RTcpSocket, Socket_ABC, RWebsocketSocket
 from enum import Enum, auto
 import rsockets2.frames as frames
 import rx
@@ -17,6 +17,7 @@ MINOR_VERSION = 0
 
 class SocketType(Enum):
     TCP_SOCKET = auto()
+    WEBSOCKET = auto()
 
 
 class RSocket(object):
@@ -76,10 +77,16 @@ class RSocket(object):
                 raise ValueError('Parameter "port" missing')
             self.hostname = kwargs['hostname']
             self.port = kwargs['port']
+        if socket_type == SocketType.WEBSOCKET:
+            if 'url' not in kwargs:
+                raise ValueError('Parameter "url" missing (websocket)')
+            self.url = kwargs['url']
 
     def open(self):
         if self.socket_type == SocketType.TCP_SOCKET:
             self._createTcpSocket()
+        if self.socket_type == SocketType.WEBSOCKET:
+            self._createWebsocket()
         self._negotiate()
 
     def close(self):
@@ -215,6 +222,12 @@ class RSocket(object):
         tcpSocket.set_receive_handler(self._handleFrame)
         tcpSocket.connect(self.hostname, self.port)
         self.socket = tcpSocket
+
+    def _createWebsocket(self):
+        websocket = RWebsocketSocket(self.url)
+        websocket.set_receive_handler(self._handleFrame)
+        websocket.open()
+        self.socket = websocket
 
     def _handleFrame(self, rawFrame: bytes):
         frame = self._parser.parseFrame(data=rawFrame)

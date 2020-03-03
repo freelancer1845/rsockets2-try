@@ -6,7 +6,7 @@ from enum import Enum, auto
 import struct
 from .socket_abc import Socket_ABC
 from abc import abstractmethod
-
+import logging
 
 class RecvStatus(Enum):
     LENGTH_BYTE_0 = auto()
@@ -19,7 +19,7 @@ class RTcpSocket(Socket_ABC):
 
     def __init__(self):
         super().__init__()
-
+        self._log = logging.getLogger("rsockets2.socket.tcp")
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.recv_thread = threading.Thread(
             name="RTcpReceiver", daemon=True, target=self._recvloop)
@@ -34,6 +34,7 @@ class RTcpSocket(Socket_ABC):
         self._recv_position = 0
 
         self._queue_lock = threading.Lock()
+
 
     def connect(self, hostname: str, port: int):
         self._hostname = hostname

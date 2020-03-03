@@ -1,9 +1,12 @@
+import logging
+logging.basicConfig(level=logging.DEBUG)
 from rsockets2 import RMessageSocket, SocketType
 import time
 import sys
 
 SPRING_SERVER_HOSTNAME = 'localhost'
 SPRING_SERVER_PORT = 24512
+
 
 
 """
@@ -41,8 +44,9 @@ public Mono<Void> triggerfnf(RSocketRequester requester, String payload) {
 """
 
 if __name__ == "__main__":
-    socket = RMessageSocket(socket_type=SocketType.TCP_SOCKET, keepalive=10000, maxlive=10000,
-                            hostname=SPRING_SERVER_HOSTNAME, port=SPRING_SERVER_PORT)
+    # Exchange socket_type if necessary
+    socket = RMessageSocket(socket_type=SocketType.WEBSOCKET, keepalive=10000, maxlive=10000,
+                            hostname=SPRING_SERVER_HOSTNAME, port=SPRING_SERVER_PORT, url = "ws://localhost:8080/rsocket")
 
     print("This expects Spring MessageMapping 'test.controller.mono' returning a Mono<byte[]>")
     print("This expects Spring MessageMapping 'test.controller.flux' returning a Flux<byte[]>")
