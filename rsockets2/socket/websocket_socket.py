@@ -14,38 +14,51 @@ class RWebsocketSocket(Socket_ABC):
         self._ws: websocket.WebSocketApp
         self.url = url
 
-        self._receive_handler = None
         self._log = logging.getLogger("rsockets2.socket.websocket")
         self._runner: threading.Thread
-        self._send_position = 0
-        self._recv_position = 0
         self._send_lock = threading.Lock()
         self._recv_position_lock = threading.Lock()
 
         self._message_buffer = []
+
 
     def open(self):
         if self._receive_handler == None:
             raise ValueError("Receive Handler must be set!")
 
         open_event = threading.Event()
+        connect_error = None
 
-        def on_open(ws):
+        def on_open(ws: websocket.WebSocket):
             open_event.set()
+
+        def on_error(ws, error):
+            nonlocal connect_error
+            connect_error = error
+            open_event.set()
+
+        def on_close(ws):
+            pass
 
         self._ws = websocket.WebSocketApp(
             url=self.url,
             on_data=self._on_message,
-            on_error=self._on_error,
-            on_close=self._on_close,
+            on_error=on_error,
+            on_close=on_close,
             on_open=on_open,
 
         )
+
+
         self._runner = threading.Thread(
             name="RSocket-Websocket", target=self._ws.run_forever, daemon=True)
         self._runner.start()
 
-        open_event.wait(2.0)
+        open_event.wait(30.0)
+        if connect_error != None:
+            raise connect_error
+        self._ws.on_error = self._on_error
+        self._ws.on_close = self._on_close
 
     @abstractmethod
     def send_frame(self, data):
@@ -55,10 +68,6 @@ class RWebsocketSocket(Socket_ABC):
             self._ws.send(data, opcode=websocket.ABNF.OPCODE_BINARY)
         finally:
             self._send_lock.release()
-
-    @abstractmethod
-    def set_receive_handler(self, callback: typing.Callable[[bytes], None]):
-        self._receive_handler = callback
 
     @abstractmethod
     def close(self):
@@ -87,8 +96,9 @@ class RWebsocketSocket(Socket_ABC):
                 self._recv_position_lock.release()
             self._receive_handler(final_message)
 
-    def _on_error(self, ws, error):
+    def _on_error(self, error):
         self._log.error("Unexpected error on websocket {}".format(error))
 
-    def _on_close(self, ws):
-        self._log.info("Websocket closed {}")
+    def _on_close(self):
+        self._log.info("Websocket closed")
+        self._socket_closed_handler(None)

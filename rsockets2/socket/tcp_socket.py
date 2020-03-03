@@ -8,6 +8,7 @@ from .socket_abc import Socket_ABC
 from abc import abstractmethod
 import logging
 
+
 class RecvStatus(Enum):
     LENGTH_BYTE_0 = auto()
     LENGTH_BYTE_1 = auto()
@@ -28,13 +29,9 @@ class RTcpSocket(Socket_ABC):
         self._port = 0
         self._recvstate = RecvStatus.LENGTH_BYTE_0
 
-        self._recv_handler = None
-        self._send_position = 0
-        self._queue_send_position = 0
-        self._recv_position = 0
+        self._socket_closed = True
 
         self._queue_lock = threading.Lock()
-
 
     def connect(self, hostname: str, port: int):
         self._hostname = hostname
@@ -42,22 +39,21 @@ class RTcpSocket(Socket_ABC):
         self._queue_lock.acquire()
         try:
             self.socket.connect((self._hostname, self._port))
+            self._socket_closed = False
         finally:
             self._queue_lock.release()
         self._running = True
         self.recv_thread.start()
 
-    @abstractmethod
-    def set_receive_handler(self, callback):
-        self._recv_handler = callback
 
     @abstractmethod
     def send_frame(self, data) -> int:
+
         position = 0
         self._queue_lock.acquire(True, 10.0)
         try:
-            # self._send_queue.put(data)
-
+            if self._socket_closed:
+                raise IOError("Socket closed!")
             data_to_send = data
             frame_length = len(data_to_send)
             frame_length_bytes = bytearray(3)
@@ -77,6 +73,8 @@ class RTcpSocket(Socket_ABC):
 
             self._send_position += frame_length
             position = self._send_position
+        except IOError as ioError:
+            self._signal_socket_closed(ioError)
         finally:
             self._queue_lock.release()
         return position
@@ -95,48 +93,58 @@ class RTcpSocket(Socket_ABC):
         current_frame = None
         data_read = 0
         read_buffer_size = 256
+        try:
+            while self._running:
+                if read_buffer_size < 256:
+                    read_buffer_size = 256
+                try:
+                    buffer = self.socket.recv(read_buffer_size)
+                except ConnectionAbortedError as connectionAbortError:
+                    if self._running == False:
+                        # This is expected as the socket should be closed
+                        pass
+                    else:
 
-        while self._running:
-            if read_buffer_size < 256:
-                read_buffer_size = 256
-            try:
-                buffer = self.socket.recv(read_buffer_size)
-            except ConnectionAbortedError as connectionAbortError:
-                if self._running == False:
-                    # This is expected as the socket should be closed
-                    pass
-                else:
-                    raise connectionAbortError
-            i = 0
-            while i < len(buffer):
-                # print("Reading value from buffer. State: {}".format(RecvStatus.READING_FRAME))
-                if self._recvstate == RecvStatus.LENGTH_BYTE_0:
-                    current_frame_length = (buffer[i] & 0xFF) << 16
-                    i += 1
-                    self._recvstate = RecvStatus.LENGTH_BYTE_1
-                elif self._recvstate == RecvStatus.LENGTH_BYTE_1:
-                    current_frame_length |= (buffer[i] & 0xFF) << 8
-                    i += 1
-                    self._recvstate = RecvStatus.LENGTH_BYTE_2
-                elif self._recvstate == RecvStatus.LENGTH_BYTE_2:
-                    current_frame_length |= (buffer[i] & 0xFF)
-                    read_buffer_size = current_frame_length
-                    current_frame = bytearray(current_frame_length)
-                    data_read = 0
-                    i += 1
-                    self._recvstate = RecvStatus.READING_FRAME
+                        raise connectionAbortError
+                i = 0
+                while i < len(buffer):
+                    # print("Reading value from buffer. State: {}".format(RecvStatus.READING_FRAME))
+                    if self._recvstate == RecvStatus.LENGTH_BYTE_0:
+                        current_frame_length = (buffer[i] & 0xFF) << 16
+                        i += 1
+                        self._recvstate = RecvStatus.LENGTH_BYTE_1
+                    elif self._recvstate == RecvStatus.LENGTH_BYTE_1:
+                        current_frame_length |= (buffer[i] & 0xFF) << 8
+                        i += 1
+                        self._recvstate = RecvStatus.LENGTH_BYTE_2
+                    elif self._recvstate == RecvStatus.LENGTH_BYTE_2:
+                        current_frame_length |= (buffer[i] & 0xFF)
+                        read_buffer_size = current_frame_length
+                        current_frame = bytearray(current_frame_length)
+                        data_read = 0
+                        i += 1
+                        self._recvstate = RecvStatus.READING_FRAME
 
-                elif self._recvstate == RecvStatus.READING_FRAME:
-                    # read frame in chunks
-                    available = len(buffer) - i
-                    if data_read + available > current_frame_length:
-                        available = current_frame_length - data_read
-                    current_frame[data_read:(
-                        data_read + available)] = buffer[i:(i + available)]
-                    i += available
-                    data_read += available
-                    read_buffer_size = current_frame_length - data_read
-                    if data_read == current_frame_length:
-                        if self._recv_handler != None:
-                            self._recv_handler(current_frame)
-                        self._recvstate = RecvStatus.LENGTH_BYTE_0
+                    elif self._recvstate == RecvStatus.READING_FRAME:
+                        # read frame in chunks
+                        available = len(buffer) - i
+                        if data_read + available > current_frame_length:
+                            available = current_frame_length - data_read
+                        current_frame[data_read:(
+                            data_read + available)] = buffer[i:(i + available)]
+                        i += available
+                        data_read += available
+                        read_buffer_size = current_frame_length - data_read
+                        if data_read == current_frame_length:
+                            self._receive_handler(current_frame)
+                            self._recvstate = RecvStatus.LENGTH_BYTE_0
+        except IOError as err:
+            self._signal_socket_closed(err)
+
+    def _signal_socket_closed(self, error):
+        self._socket_closed = True
+        if self._running == False:
+            # Socket being closed is expected
+            return
+        self._running = True
+        self._socket_close_handler(error)
