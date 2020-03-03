@@ -1,34 +1,33 @@
+import sys
+import time
+from rsockets2 import RMessageSocket, SocketType
 import logging
 logging.basicConfig(level=logging.DEBUG)
-from rsockets2 import RMessageSocket, SocketType
-import time
-import sys
 
 SPRING_SERVER_HOSTNAME = 'localhost'
 SPRING_SERVER_PORT = 24512
-
 
 
 """
     Spring Controller Functions Example
 
 @MessageMapping("test.controller.mono")
-public Mono<byte[]> monoTest() {
+public Mono<Map<String, byte[]>> monoTest() {
     ByteBuffer buffer = ByteBuffer.allocate(12 * 1000000);
     for (int i = 0; i < buffer.capacity(); i++) {
         buffer.put((byte) i);
     }
-    return Mono.just(buffer.array());
+    return Mono.just(Collections.singletonMap("data", "Hello World".getBytes()));
 }
 
 @MessageMapping("test.controller.flux")
-public Flux<byte[]> fluxTest() {
+public Flux<Map<String, byte[]>> fluxTest() {
     ByteBuffer buffer = ByteBuffer.allocate(16 * 1000000);
     for (int i = 0; i < buffer.capacity(); i++) {
         buffer.put((byte) i);
     }
-    return Flux.range(0, 20)
-                .map(t -> buffer.array());
+    return Flux.range(0, 5)
+                .map(t -> Collections.singletonMap("data", buffer.array()));
 }
 
 @MessageMapping("test.controller.triggerfnf")
@@ -37,19 +36,19 @@ public Mono<Void> triggerfnf(RSocketRequester requester, String payload) {
                 .data(payload)
                 .send()
                 .subscribe();
-    System.out.println("Send FNF");
     return Mono.empty();
 }
+
 
 """
 
 if __name__ == "__main__":
     # Exchange socket_type if necessary
     socket = RMessageSocket(socket_type=SocketType.WEBSOCKET, keepalive=10000, maxlive=10000,
-                            hostname=SPRING_SERVER_HOSTNAME, port=SPRING_SERVER_PORT, url = "ws://localhost:8080/rsocket")
+                            hostname=SPRING_SERVER_HOSTNAME, port=SPRING_SERVER_PORT, url="ws://localhost:8080/rsocket")
 
-    print("This expects Spring MessageMapping 'test.controller.mono' returning a Mono<byte[]>")
-    print("This expects Spring MessageMapping 'test.controller.flux' returning a Flux<byte[]>")
+    print("This expects Spring MessageMapping 'test.controller.mono' returning a Mono<Map<String, byte[]>>")
+    print("This expects Spring MessageMapping 'test.controller.flux' returning a Flux<Map<String, byte[]>>")
     print("This expects Spring MessageMapping 'test.controller.triggerfnf' returning a Mono<Void> and sending a FNF")
 
     socket.register_fire_and_forget_handler(
@@ -74,11 +73,15 @@ if __name__ == "__main__":
         socket.request_response('test.controller.mono').subscribe(on_next=lambda x: adder(
             x), on_error=lambda err: print("Oh my god it failed: {}".format(err)), on_completed=on_complete)
 
+        # Test Request Response Error
+        socket.request_response('test.controller.mono.error').subscribe(on_next=lambda x: adder(
+            x), on_error=lambda err: print("Perfect! It failed: {}".format(err)), on_completed=on_complete)
+
         # Test Request Stream
         socket.request_stream('test.controller.flux').subscribe(on_next=lambda x: print(
             "Received Size: {} mb".format(sys.getsizeof(x) / 1000000.0)), on_error=lambda err: print("Oh my god it failed: {}".format(err)), on_completed=lambda: print("Request Stream Complete"))
 
-        # Test Fire And Forget
+        # # Test Fire And Forget
         socket.request_response(
             'test.controller.triggerfnf').subscribe()
 

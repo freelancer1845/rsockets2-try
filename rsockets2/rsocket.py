@@ -10,6 +10,8 @@ import threading
 import time
 import typing
 import rsockets2.handler as handler
+import rsockets2.executor as executors
+import sys
 
 MAJOR_VERSION = 1
 MINOR_VERSION = 0
@@ -18,6 +20,15 @@ MINOR_VERSION = 0
 class SocketType(Enum):
     TCP_SOCKET = auto()
     WEBSOCKET = auto()
+
+
+def _throw_error(error):
+    raise error
+
+
+def _wrap_throw_error_frame(frame: frames.ErrorFrame):
+    raise Exception(
+        'Application Error. Message: "{}"'.format(frame.error_data))
 
 
 class RSocket(object):
@@ -55,10 +66,8 @@ class RSocket(object):
         self._cancel_subject = rx.subject.Subject()
         self._socket_closed_subject = rx.subject.Subject()
 
-        def throwError(error):
-            raise error
         self._socket_closed_thrower = self._socket_closed_subject.pipe(
-            op.map(lambda e: throwError(e)))
+            op.map(lambda e: _throw_error(e)))
 
         self._fragmented_frames = {}
 
@@ -100,6 +109,7 @@ class RSocket(object):
         self.socket.close()
 
     def request_response(self, meta_data, data) -> rx.Observable:
+
         request = frames.RequestResponse()
         request.stream_id = self._get_new_stream_id()
         if isinstance(meta_data, str):
@@ -114,42 +124,7 @@ class RSocket(object):
             request.meta_data = bytearray(meta_data)
             request.meta_data.insert(0, len(request.meta_data))
 
-        def subscription(observer, scheduler):
-            if scheduler is None:
-                scheduler = self._scheduler
-
-            def error_handler(error):
-                observer.on_error(
-                    Exception("ErrorMessage: {}".format(error.error_data)))
-                stream_subscription.dispose()
-
-            error_disposable = self._application_error_subject.pipe(
-                op.observe_on(self._scheduler),
-                op.filter(lambda error: error.stream_id == request.stream_id),
-                op.take(1),
-                op.observe_on(scheduler),
-            ).subscribe(on_next=lambda x: error_handler(x), on_error=lambda x: print(x))
-
-            def final_action():
-                self._used_stream_ids.remove(request.stream_id)
-                error_disposable.dispose()
-
-            stream_subscription = self._payload_subject.pipe(
-                op.observe_on(self._scheduler),
-                op.filter(lambda payload: payload.stream_id ==
-                          request.stream_id),
-                op.take(1),
-                op.map(lambda payload: payload.payload),
-                op.observe_on(scheduler),
-                op.take_until(self._socket_closed_subject),
-                op.merge(self._socket_closed_thrower),
-                op.finally_action(
-                    lambda: final_action())
-            ).subscribe(on_next=lambda x: observer.on_next(x), on_error=lambda err: observer.on_error(err), on_completed=lambda: observer.on_completed())
-
-            self.socket.send_frame(request.to_bytes())
-
-        return rx.create(subscription)
+        return executors.request_response_executor(self.socket, request, self._payload_subject).pipe(self._errors_and_teardown(request.stream_id))
 
     def request_stream(self, meta_data, data) -> rx.Observable:
         request = frames.RequestStream()
@@ -167,42 +142,7 @@ class RSocket(object):
             request.meta_data = bytearray(meta_data)
             request.meta_data.insert(0, len(request.meta_data))
 
-        def subscription(observer, scheduler):
-            if scheduler is None:
-                scheduler = self._scheduler
-
-            def error_handler(error):
-                observer.on_error(
-                    Exception("ErrorMessage: {}".format(error.error_data)))
-                stream_subscription.dispose()
-            error_disposable = self._application_error_subject.pipe(
-                op.observe_on(self._scheduler),
-                op.filter(lambda error: error.stream_id == request.stream_id),
-                op.take(1),
-                op.observe_on(scheduler),
-            ).subscribe(on_next=error_handler, on_error=lambda x: print(x))
-
-            def final_action():
-                self._used_stream_ids.remove(request.stream_id)
-                error_disposable.dispose()
-
-            stream_subscription = self._payload_subject.pipe(
-                op.observe_on(self._scheduler),
-                op.filter(lambda payload: payload.stream_id ==
-                          request.stream_id),
-                op.take_while(
-                    lambda payload: payload.complete == False, inclusive=True),
-                op.filter(lambda payload: payload.next_present == True),
-                op.map(lambda payload: payload.payload),
-                op.take_until(self._socket_closed_subject),
-                op.merge(self._socket_closed_thrower),
-                op.finally_action(
-                    lambda: self._used_stream_ids.remove(request.stream_id)),
-                op.observe_on(scheduler)
-            ).subscribe(on_next=lambda x: observer.on_next(x), on_error=lambda err: observer.on_error(err), on_completed=lambda: observer.on_completed())
-
-            self.socket.send_frame(request.to_bytes())
-        return rx.create(subscription)
+        return executors.request_stream_executor(self.socket, request, self._payload_subject).pipe(self._errors_and_teardown(request.stream_id))
 
     def fire_and_forget(self, meta_data, data) -> rx.Observable:
         def action():
@@ -227,9 +167,11 @@ class RSocket(object):
         self.socket.send_frame(setupFrame.to_bytes())
         self._keepalive_run = True
         self._keepalive_sender.start()
+
         def on_complete():
             self._keepalive_run = False
-        self._socket_closed_subject.pipe(op.take(1)).subscribe(on_completed=lambda: on_complete())
+        self._socket_closed_subject.pipe(op.take(1)).subscribe(
+            on_completed=lambda: on_complete())
 
     def _keepalive_runner(self):
         while self._keepalive_run:
@@ -259,6 +201,7 @@ class RSocket(object):
         if isinstance(frame, frames.KeepAliveFrame):
             self._keepalive_subject.on_next(frame)
         elif isinstance(frame, frames.ErrorFrame):
+
             if frame.error_code == frames.ErrorCodes.APPLICATION_ERROR:
                 self._application_error_subject.on_next(frame)
             else:
@@ -349,6 +292,28 @@ class RSocket(object):
 
         self._keepalive_subject.pipe(op.observe_on(self._scheduler)).subscribe(
             on_next=keep_alive_subscriber)
+
+    def _errors_and_teardown(self, stream_id):
+        def final_action():
+            self._used_stream_ids.remove(stream_id)
+        application_error = self._application_error_subject.pipe(
+            op.filter(lambda error: error.stream_id == stream_id),
+            op.map(_wrap_throw_error_frame),
+        )
+
+        return rx.pipe(
+            op.observe_on(self._scheduler),
+            op.take_until(self._socket_closed_subject),
+            op.materialize(),
+            # Throws error if socket closes
+            op.merge(self._socket_closed_thrower),
+            # Throws error on Application error for this stream
+            op.merge(application_error),
+            op.dematerialize(),
+            op.finally_action(
+                lambda: final_action()),
+            op.subscribe_on(self._scheduler),
+        )
 
     def _handle_socket_closed(self, error):
         if error != None:
