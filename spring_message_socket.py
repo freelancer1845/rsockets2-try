@@ -2,6 +2,7 @@ import sys
 import time
 from rsockets2 import RMessageSocket, SocketType
 import logging
+import rx
 logging.basicConfig(level=logging.DEBUG)
 
 SPRING_SERVER_HOSTNAME = 'localhost'
@@ -44,7 +45,7 @@ public Mono<Void> triggerfnf(RSocketRequester requester, String payload) {
 
 if __name__ == "__main__":
     # Exchange socket_type if necessary
-    socket = RMessageSocket(socket_type=SocketType.WEBSOCKET, keepalive=10000, maxlive=10000,
+    socket = RMessageSocket(socket_type=SocketType.WEBSOCKET, keepalive=10000, maxlive=20000,
                             hostname=SPRING_SERVER_HOSTNAME, port=SPRING_SERVER_PORT, url="ws://localhost:8080/rsocket")
 
     print("This expects Spring MessageMapping 'test.controller.mono' returning a Mono<Map<String, byte[]>>")
@@ -58,20 +59,27 @@ if __name__ == "__main__":
         time.sleep(1.0)
 
         total_size = 0
-
+        last_size = 0
         def adder(x):
             global total_size
-            total_size += sys.getsizeof(x)
+            global last_size
+            last_size = sys.getsizeof(x)
+            total_size += last_size
         start = time.time()
 
         def on_complete():
             global start
             needed = time.time() - start
-            print("Request Response Complete. Received --- {}mb Needed: {}s Speed: {}mb/s".format(total_size /
-                                                                                                  1000000, needed, total_size / 1000000 / needed))
-        # Test Request Response
-        socket.request_response('test.controller.mono').subscribe(on_next=lambda x: adder(
-            x), on_error=lambda err: print("Oh my god it failed: {}".format(err)), on_completed=on_complete)
+            print("Request Response Complete. Total Received --- {}mb Needed: {}s Speed: {}mb/s".format(total_size /
+                                                                                                  1000000, needed, last_size / 1000000 / needed))
+
+        def continous_request_response():
+            global start
+            start = time.time()
+            socket.request_response('test.controller.mono').subscribe(on_next=lambda x: adder(
+                x), on_error=lambda err: print("Oh my god it failed: {}".format(err)), on_completed=on_complete)
+
+        rx.interval(2.0).subscribe(lambda x: continous_request_response())
 
         # Test Request Response Error
         socket.request_response('test.controller.mono.error').subscribe(on_next=lambda x: adder(
