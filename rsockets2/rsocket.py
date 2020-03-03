@@ -105,7 +105,7 @@ class RSocket(object):
         self._negotiate()
 
     def close(self):
-        self._keepalive_run = True
+        self._keepalive_run = False
         self.socket.close()
 
     def request_response(self, meta_data, data) -> rx.Observable:

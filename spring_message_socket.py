@@ -3,6 +3,7 @@ import time
 from rsockets2 import RMessageSocket, SocketType
 import logging
 import rx
+import rx.operators
 logging.basicConfig(level=logging.DEBUG)
 
 SPRING_SERVER_HOSTNAME = 'localhost'
@@ -45,7 +46,7 @@ public Mono<Void> triggerfnf(RSocketRequester requester, String payload) {
 
 if __name__ == "__main__":
     # Exchange socket_type if necessary
-    socket = RMessageSocket(socket_type=SocketType.WEBSOCKET, keepalive=10000, maxlive=20000,
+    socket = RMessageSocket(socket_type=SocketType.WEBSOCKET, keepalive=5000000, maxlive=500000,
                             hostname=SPRING_SERVER_HOSTNAME, port=SPRING_SERVER_PORT, url="ws://localhost:8080/rsocket")
 
     print("This expects Spring MessageMapping 'test.controller.mono' returning a Mono<Map<String, byte[]>>")
@@ -60,30 +61,34 @@ if __name__ == "__main__":
 
         total_size = 0
         last_size = 0
+
         def adder(x):
             global total_size
             global last_size
             last_size = sys.getsizeof(x)
             total_size += last_size
-        start = time.time()
-
-        def on_complete():
             global start
             needed = time.time() - start
             print("Request Response Complete. Total Received --- {}mb Needed: {}s Speed: {}mb/s".format(total_size /
-                                                                                                  1000000, needed, last_size / 1000000 / needed))
+                                                                                                        1000000, needed, last_size / 1000000 / needed))
+
+        start = time.time()
+
 
         def continous_request_response():
             global start
             start = time.time()
-            socket.request_response('test.controller.mono').subscribe(on_next=lambda x: adder(
-                x), on_error=lambda err: print("Oh my god it failed: {}".format(err)), on_completed=on_complete)
+            return socket.request_response('test.controller.mono')
 
-        rx.interval(2.0).subscribe(lambda x: continous_request_response())
+        rx.timer(0.5).pipe(
+            rx.operators.flat_map(lambda x: continous_request_response()),
+            rx.operators.repeat()
+        ).subscribe(on_next=lambda x: adder(
+            x), on_error=lambda err: print("Oh my god it failed: {}".format(err)))
 
         # Test Request Response Error
-        socket.request_response('test.controller.mono.error').subscribe(on_next=lambda x: adder(
-            x), on_error=lambda err: print("Perfect! It failed: {}".format(err)), on_completed=on_complete)
+        socket.request_response('test.controller.mono.error').subscribe(
+            on_error=lambda err: print("Perfect! It failed: {}".format(err)))
 
         # Test Request Stream
         socket.request_stream('test.controller.flux').subscribe(on_next=lambda x: print(
@@ -93,11 +98,11 @@ if __name__ == "__main__":
         socket.request_response(
             'test.controller.triggerfnf').subscribe()
 
-        time_waited = 0
         while True:
             time.sleep(1.0)
-            time_waited += 1
-            if time_waited > 30:
-                break
+    except KeyboardInterrupt:
+        pass
+    except Exception as err:
+        print("Unexepected exception {}".fomrat(err))
     finally:
         socket.close()

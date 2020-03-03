@@ -97,7 +97,7 @@ class RWebsocketSocket(Socket_ABC):
             self._receive_handler(final_message)
 
     def _on_error(self, error):
-        self._log.error("Unexpected error on websocket {}".format(error))
+        self._log.error("Unexpected error on websocket {}".format(error), exc_info=error)
 
     def _on_close(self):
         self._log.info("Websocket closed")
