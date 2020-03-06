@@ -1,19 +1,20 @@
 from .common import FrameType, read_meta_data_length
 import struct
+from .frame_abc import Frame_ABC
+from abc import abstractmethod
 
 
-class RequestResponse(object):
+class RequestResponse(Frame_ABC):
 
     def __init__(self):
         super().__init__()
 
         self.meta_data_present = False
-        self.stream_id = 0
         self.meta_data = None
         self.request_data = None
 
-    @staticmethod
-    def from_data(stream_id: int, flags: int, full_data: bytes):
+    @classmethod
+    def from_data(cls, stream_id: int, flags: int, full_data: bytes):
         frame = RequestResponse()
 
         data_read = 6
@@ -24,7 +25,7 @@ class RequestResponse(object):
             data_read += 3
             frame.meta_data = full_data[data_read:(data_read + metaDataLength)]
             data_read += metaDataLength
-        
+
         frame.request_data = full_data[data_read:]
         return frame
 

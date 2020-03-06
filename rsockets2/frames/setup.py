@@ -1,8 +1,10 @@
 from .common import FrameType, read_meta_data_length
 import struct
+from .frame_abc import Frame_ABC
+from abc import abstractmethod
 
 
-class SetupFrame(object):
+class SetupFrame(Frame_ABC):
 
     def __init__(self):
         super().__init__()
@@ -18,8 +20,8 @@ class SetupFrame(object):
         self.setup_payload = bytes(0)
         self.honors_lease = False
 
-    @staticmethod
-    def from_data(stream_id: int, flags: int, full_data: bytes):
+    @classmethod
+    def from_data(cls, stream_id: int, flags: int, full_data: bytes):
         frame = SetupFrame()
 
         data_read = 6
@@ -88,19 +90,19 @@ class SetupFrame(object):
         type_and_flags = type_and_flags
         struct.pack_into(">H", data, dataWritten, type_and_flags)
         dataWritten += 2
-        struct.pack_into(">HH", data, dataWritten, self.major_version, self.minor_version)
+        struct.pack_into(">HH", data, dataWritten,
+                         self.major_version, self.minor_version)
         dataWritten += 4
         struct.pack_into(">II", data, dataWritten, self.keepalive_time,
                          self.max_lifetime)
         dataWritten += 8
 
-
         if self.resume_identification_token != None:
-            struct.pack_into(">B", data, dataWritten, len(
+            struct.pack_into(">H", data, dataWritten, len(
                 self.resume_identification_token))
-            data[(dataWritten + 1):(dataWritten + len(self.resume_identification_token))
+            dataWritten += 2
+            data[(dataWritten):(dataWritten + len(self.resume_identification_token))
                  ] = self.resume_identification_token
-            dataWritten += 1
             dataWritten += len(self.resume_identification_token)
 
         mime_meta_data_length = len(self.meta_data_mime_type) & 0xFF

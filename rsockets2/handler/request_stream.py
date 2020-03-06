@@ -18,7 +18,7 @@ class RequestStreamHandler(object):
         answer.next_present = True
         answer.payload = value
         answer.meta_data = bytes(0)
-        self.socket.send_frame(answer.to_bytes())
+        self.socket.send_frame(answer)
 
     def on_error(self, error):
         error_frame = frames.ErrorFrame()
@@ -28,7 +28,7 @@ class RequestStreamHandler(object):
             error_frame.error_data = str(error).encode("ASCII")
         else:
             error_frame.error_data = error
-        self.socket.send_frame(error_frame.to_bytes())
+        self.socket.send_frame(error_frame)
 
     def on_completed(self):
         answer = frames.Payload()
@@ -38,4 +38,4 @@ class RequestStreamHandler(object):
         answer.next_present = False
         answer.payload = bytes(0)
         answer.meta_data = bytes(0)
-        self.socket.send_frame(answer.to_bytes())
+        self.socket.send_frame(answer)

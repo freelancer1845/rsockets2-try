@@ -1,23 +1,24 @@
 from .common import FrameType, read_meta_data_length
 import struct
 import typing
+from .frame_abc import Frame_ABC
+from abc import abstractmethod
 
 
-class Payload(object):
+class Payload(Frame_ABC):
 
     def __init__(self):
         super().__init__()
 
         self.meta_data_present = False
-        self.stream_id = 0
         self.next_present = False
         self.complete = False
         self.follows = False
         self.meta_data = bytes(0)
         self.payload = bytes(0)
 
-    @staticmethod
-    def from_data(stream_id: int, flags: int, full_data: bytes):
+    @classmethod
+    def from_data(cls, stream_id: int, flags: int, full_data: bytes):
         frame = Payload()
 
         data_read = 6

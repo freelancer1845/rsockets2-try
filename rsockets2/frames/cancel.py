@@ -1,15 +1,16 @@
 from .common import FrameType
 import struct
+from .frame_abc import Frame_ABC
+from abc import abstractmethod
 
 
-class CancelFrame(object):
+class CancelFrame(Frame_ABC):
 
     def __init__(self):
         super().__init__()
-        self.stream_id = 0
 
-    @staticmethod
-    def from_data(stream_id: int, flags: int, full_data: bytes):
+    @classmethod
+    def from_data(cls, stream_id: int, flags: int, full_data: bytes):
         frame = CancelFrame()
         frame.stream_id = stream_id
         return frame

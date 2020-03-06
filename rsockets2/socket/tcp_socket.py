@@ -5,6 +5,7 @@ from queue import Queue
 from enum import Enum, auto
 import struct
 from .socket_abc import Socket_ABC
+from rsockets2.frames import Frame_ABC
 from abc import abstractmethod
 import logging
 
@@ -18,8 +19,8 @@ class RecvStatus(Enum):
 
 class RTcpSocket(Socket_ABC):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, resume_support):
+        super().__init__(resume_support)
         self._log = logging.getLogger("rsockets2.socket.tcp")
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.recv_thread = threading.Thread(
@@ -45,17 +46,11 @@ class RTcpSocket(Socket_ABC):
         self._running = True
         self.recv_thread.start()
 
-
-    @abstractmethod
-    def send_frame(self, data) -> int:
-
-        position = 0
-        self._queue_lock.acquire(True, 10.0)
+    def _send_frame_internal(self, data: bytes):
         try:
             if self._socket_closed:
                 raise IOError("Socket closed!")
-            data_to_send = data
-            frame_length = len(data_to_send)
+            frame_length = len(data)
             frame_length_bytes = bytearray(3)
             frame_length_bytes[0] = frame_length >> 16 & 0xFF
             frame_length_bytes[1] = frame_length >> 8 & 0xFF
@@ -67,26 +62,15 @@ class RTcpSocket(Socket_ABC):
                     break
             datasend = 0
             while True:
-                datasend += self.socket.send(data_to_send[datasend:])
+                datasend += self.socket.send(data[datasend:])
                 if datasend == frame_length:
                     break
-
-            self._send_position += frame_length
-            position = self._send_position
         except IOError as ioError:
             self._signal_socket_closed(ioError)
-        finally:
-            self._queue_lock.release()
-        return position
 
-    @abstractmethod
-    def close(self):
+    def _close_internal(self):
         self._running = False
         self.socket.close()
-
-    @abstractmethod
-    def get_recv_position(self) -> int:
-        return self._recv_position
 
     def _recvloop(self):
         current_frame_length = 0
@@ -126,6 +110,7 @@ class RTcpSocket(Socket_ABC):
                         self._recvstate = RecvStatus.READING_FRAME
 
                     elif self._recvstate == RecvStatus.READING_FRAME:
+                        print("Reading Frame With Size: {}".format(current_frame_length))
                         # read frame in chunks
                         available = len(buffer) - i
                         if data_read + available > current_frame_length:
@@ -136,7 +121,7 @@ class RTcpSocket(Socket_ABC):
                         data_read += available
                         read_buffer_size = current_frame_length - data_read
                         if data_read == current_frame_length:
-                            self._receive_handler(current_frame)
+                            self._receive_handler_bytes(current_frame)
                             self._recvstate = RecvStatus.LENGTH_BYTE_0
         except IOError as err:
             self._signal_socket_closed(err)
@@ -147,4 +132,4 @@ class RTcpSocket(Socket_ABC):
             # Socket being closed is expected
             return
         self._running = True
-        self._socket_close_handler(error)
+        self._socket_closed_handler(error)

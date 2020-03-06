@@ -1,8 +1,10 @@
 from .common import FrameType
 import struct
+from .frame_abc import Frame_ABC
+from abc import abstractmethod
 
 
-class KeepAliveFrame(object):
+class KeepAliveFrame(Frame_ABC):
 
     def __init__(self):
         super().__init__()
@@ -10,13 +12,14 @@ class KeepAliveFrame(object):
         self.last_received_position = 0
         self.data = bytes(0)
 
-    @staticmethod
-    def from_data(stream_id: int, flags: int, full_data: bytes):
+    @classmethod
+    def from_data(cls, stream_id: int, flags: int, full_data: bytes):
         frame = KeepAliveFrame()
 
         data_read = 6
         frame.respond_flag = flags >> 7 & 1 == 1
-        frame.last_received_position = struct.unpack_from(">Q", full_data, data_read)
+        frame.last_received_position, = struct.unpack_from(
+            ">Q", full_data, data_read)
         data_read += 8
         frame.data = full_data[data_read:]
         return frame

@@ -5,12 +5,13 @@ import websocket
 import typing
 import logging
 import threading
+from rsockets2.frames import Frame_ABC
 
 
 class RWebsocketSocket(Socket_ABC):
 
-    def __init__(self, url: str):
-        super().__init__()
+    def __init__(self, url: str, resume_support: bool):
+        super().__init__(resume_support)
         self._ws: websocket.WebSocketApp
         self.url = url
 
@@ -21,9 +22,8 @@ class RWebsocketSocket(Socket_ABC):
 
         self._message_buffer = []
 
-
     def open(self):
-        if self._receive_handler == None:
+        if self._receive_handler_bytes == None:
             raise ValueError("Receive Handler must be set!")
 
         open_event = threading.Event()
@@ -49,7 +49,6 @@ class RWebsocketSocket(Socket_ABC):
 
         )
 
-
         self._runner = threading.Thread(
             name="RSocket-Websocket", target=self._ws.run_forever, daemon=True)
         self._runner.start()
@@ -60,25 +59,13 @@ class RWebsocketSocket(Socket_ABC):
         self._ws.on_error = self._on_error
         self._ws.on_close = self._on_close
 
-    @abstractmethod
-    def send_frame(self, data):
-        try:
-            self._send_lock.acquire()
-            self._send_position += len(data)
-            self._ws.send(data, opcode=websocket.ABNF.OPCODE_BINARY)
-        finally:
-            self._send_lock.release()
+    def _send_frame_internal(self, data: bytes):
+        self._ws.send(data, opcode=websocket.ABNF.OPCODE_BINARY)
 
-    @abstractmethod
-    def close(self):
+    def _close_internal(self):
         self._ws.close()
 
-    @abstractmethod
-    def get_recv_position(self):
-        return self._recv_position
-
     def _on_message(self, message, data_type, cont_flag):
-
         if cont_flag == False:
             self._message_buffer.append(message)
         else:
@@ -89,15 +76,11 @@ class RWebsocketSocket(Socket_ABC):
                 self._message_buffer.clear()
             else:
                 final_message = message
-            try:
-                self._recv_position_lock.acquire()
-                self._recv_position += len(final_message)
-            finally:
-                self._recv_position_lock.release()
-            self._receive_handler(final_message)
+            self._receive_handler_bytes(final_message)
 
     def _on_error(self, error):
-        self._log.error("Unexpected error on websocket {}".format(error), exc_info=error)
+        self._log.error("Unexpected error on websocket {}".format(
+            error), exc_info=error)
 
     def _on_close(self):
         self._log.info("Websocket closed")

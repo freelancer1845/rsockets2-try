@@ -1,6 +1,8 @@
 from .common import FrameType
 import struct
 from enum import IntEnum
+from .frame_abc import Frame_ABC
+from abc import abstractmethod
 
 
 class ErrorCodes(IntEnum):
@@ -19,17 +21,16 @@ class ErrorCodes(IntEnum):
     RESERVED_2 = 0xFFFFFFFF
 
 
-class ErrorFrame(object):
+class ErrorFrame(Frame_ABC):
 
     def __init__(self):
         super().__init__()
 
         self.error_code = ErrorCodes.RESERVED
         self.error_data = bytes(0)
-        self.stream_id = 0
 
-    @staticmethod
-    def from_data(stream_id: int, flags: int, full_data: bytes):
+    @classmethod
+    def from_data(cls, stream_id: int, flags: int, full_data: bytes):
         frame = ErrorFrame()
 
         data_read = 6

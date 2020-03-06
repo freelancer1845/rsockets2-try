@@ -31,7 +31,7 @@ def _request_response_executor(
 
     disposable = response_obs.subscribe(on_next=lambda x: observer.on_next(
         x), on_error=lambda err: observer.on_error(err), on_completed=lambda: observer.on_completed())
-    socket.send_frame(frame.to_bytes())
+    socket.send_frame(frame)
     return lambda: disposable.dispose()
 
 

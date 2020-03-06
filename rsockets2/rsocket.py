@@ -39,11 +39,13 @@ class RSocket(object):
                  maxlive=10000,
                  meta_data_mime_type=b"message/x.rsocket.routing.v0",
                  data_mime_type=b"application/json",
+                 with_resume_support=True,
                  *args,
                  **kwargs):
         super().__init__()
         self._log = logging.getLogger("rsockets2")
 
+        self.with_resume_support = with_resume_support
         self.socket: Socket_ABC = None
         self.socket_type = socket_type
         self.keepalive_time = keepalive
@@ -51,7 +53,6 @@ class RSocket(object):
         self.meta_data_mime_type = meta_data_mime_type
         self.data_mime_type = data_mime_type
 
-        self._parser = frames.FrameParser()
         self._scheduler = rx.scheduler.ThreadPoolScheduler(20)
 
         self._last_stream_id = 0
@@ -150,7 +151,7 @@ class RSocket(object):
             frame.meta_data = meta_data
             frame.request_data = data
             frame.stream_id = self._get_new_stream_id()
-            self.socket.send_frame(frame.to_bytes())
+            self.socket.send_frame(frame)
         return rx.from_callable(lambda: action(), scheduler=self._scheduler).pipe(op.ignore_elements())
 
     def _negotiate(self):
@@ -164,7 +165,10 @@ class RSocket(object):
         setupFrame.data_mime_type = self.data_mime_type
         setupFrame.honors_lease = False
 
-        self.socket.send_frame(setupFrame.to_bytes())
+        if self.with_resume_support:
+            setupFrame.resume_identification_token = b'my_first_token'  # TODO : Token Generation
+
+        self.socket.send_frame(setupFrame)
         self._keepalive_run = True
         self._keepalive_sender.start()
 
@@ -176,28 +180,30 @@ class RSocket(object):
     def _keepalive_runner(self):
         while self._keepalive_run:
             frame = frames.KeepAliveFrame()
-            frame.last_received_position = self.socket.get_recv_position()
+            if self.socket.resume_support_enabled == True:
+                frame.last_received_position = self.socket.get_recv_position()
+            else:
+                frame.last_received_position = 0
             frame.respond_flag = True
             frame.data = bytes(0)
-            self.socket.send_frame(frame.to_bytes())
+            self.socket.send_frame(frame)
             time.sleep(self.keepalive_time / 1000.0 * 0.45)
 
     def _createTcpSocket(self):
-        tcpSocket = RTcpSocket()
+        tcpSocket = RTcpSocket(self.with_resume_support)
         tcpSocket.set_receive_handler(self._handleFrame)
         tcpSocket.set_socket_closed_handler(self._handle_socket_closed)
         tcpSocket.connect(self.hostname, self.port)
         self.socket = tcpSocket
 
     def _createWebsocket(self):
-        websocket = RWebsocketSocket(self.url)
+        websocket = RWebsocketSocket(self.url, self.with_resume_support)
         websocket.set_receive_handler(self._handleFrame)
         websocket.set_socket_closed_handler(self._handle_socket_closed)
         websocket.open()
         self.socket = websocket
 
-    def _handleFrame(self, rawFrame: bytes):
-        frame = self._parser.parseFrame(data=rawFrame)
+    def _handleFrame(self, frame: frames.Frame_ABC):
         if isinstance(frame, frames.KeepAliveFrame):
             self._keepalive_subject.on_next(frame)
         elif isinstance(frame, frames.ErrorFrame):
@@ -229,7 +235,7 @@ class RSocket(object):
                 errorframe.stream_id = frame.stream_id
                 errorframe.error_code = frames.ErrorCodes.APPLICATION_ERROR
                 errorframe.error_data = b"Currently does not support Backpressure. Initial Requests must be 2^31"
-                self.socket.send_frame(errorframe.to_bytes())
+                self.socket.send_frame(errorframe)
             else:
                 observable = self.on_request_stream(frame)
                 if isinstance(observable, rx.Observable) == False:
@@ -259,7 +265,7 @@ class RSocket(object):
             errorframe.stream_id = frame.stream_id
             errorframe.error_code = frames.ErrorCodes.APPLICATION_ERROR
             errorframe.error_data = b"Currently does not support Backpressure."
-            self.socket.send_frame(errorframe.to_bytes())
+            self.socket.send_frame(errorframe)
 
         elif isinstance(frame, frames.RequestFNF):
             def runner(eventloop, state):
@@ -288,7 +294,7 @@ class RSocket(object):
                 answer.last_received_position = self.socket.get_recv_position()
                 answer.respond_flag = False
                 answer.data = keepalive.data
-                self.socket.send_frame(answer.to_bytes())
+                self.socket.send_frame(answer)
 
         self._keepalive_subject.pipe(op.observe_on(self._scheduler)).subscribe(
             on_next=keep_alive_subscriber)

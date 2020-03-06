@@ -8,3 +8,4 @@ from .payload import Payload
 from .request_n import RequestNFrame
 from .request_fnf import RequestFNF
 from .cancel import CancelFrame
+from .frame_abc import Frame_ABC

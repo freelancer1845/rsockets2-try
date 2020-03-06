@@ -1,19 +1,21 @@
 from .common import FrameType, read_meta_data_length
 import struct
+from .frame_abc import Frame_ABC
+from abc import abstractmethod
 
 
-class RequestFNF(object):
+
+class RequestFNF(Frame_ABC):
 
     def __init__(self):
         super().__init__()
 
         self.meta_data_present = False
-        self.stream_id = 0
         self.meta_data = None
         self.request_data = None
 
-    @staticmethod
-    def from_data(stream_id: int, flags: int, full_data: bytes):
+    @classmethod
+    def from_data(cls, stream_id: int, flags: int, full_data: bytes):
         frame = RequestFNF()
 
         data_read = 6

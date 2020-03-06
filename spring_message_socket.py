@@ -46,8 +46,8 @@ public Mono<Void> triggerfnf(RSocketRequester requester, String payload) {
 
 if __name__ == "__main__":
     # Exchange socket_type if necessary
-    socket = RMessageSocket(socket_type=SocketType.WEBSOCKET, keepalive=5000000, maxlive=500000,
-                            hostname=SPRING_SERVER_HOSTNAME, port=SPRING_SERVER_PORT, url="ws://localhost:8080/rsocket")
+    socket = RMessageSocket(socket_type=SocketType.TCP_SOCKET, keepalive=10000, maxlive=500000,
+                            hostname=SPRING_SERVER_HOSTNAME, port=SPRING_SERVER_PORT, url="ws://localhost:8080/rsocket", with_resume_support=True)
 
     print("This expects Spring MessageMapping 'test.controller.mono' returning a Mono<Map<String, byte[]>>")
     print("This expects Spring MessageMapping 'test.controller.flux' returning a Flux<Map<String, byte[]>>")
@@ -74,7 +74,6 @@ if __name__ == "__main__":
 
         start = time.time()
 
-
         def continous_request_response():
             global start
             start = time.time()
@@ -87,22 +86,23 @@ if __name__ == "__main__":
             x), on_error=lambda err: print("Oh my god it failed: {}".format(err)))
 
         # Test Request Response Error
-        socket.request_response('test.controller.mono.error').subscribe(
-            on_error=lambda err: print("Perfect! It failed: {}".format(err)))
+        # socket.request_response('test.controller.mono.error').subscribe(
+        #     on_error=lambda err: print("Perfect! It failed: {}".format(err)))
 
-        # Test Request Stream
-        socket.request_stream('test.controller.flux').subscribe(on_next=lambda x: print(
-            "Received Size: {} mb".format(sys.getsizeof(x) / 1000000.0)), on_error=lambda err: print("Oh my god it failed: {}".format(err)), on_completed=lambda: print("Request Stream Complete"))
+        # # Test Request Stream
+        # socket.request_stream('test.controller.flux').subscribe(on_next=lambda x: print(
+        #     "Received Size: {} mb".format(sys.getsizeof(x) / 1000000.0)), on_error=lambda err: print("Oh my god it failed: {}".format(err)), on_completed=lambda: print("Request Stream Complete"))
 
-        # # Test Fire And Forget
-        socket.request_response(
-            'test.controller.triggerfnf').subscribe()
+        # # # Test Fire And Forget
+        # socket.request_response(
+        #     'test.controller.triggerfnf').subscribe()
 
         while True:
             time.sleep(1.0)
     except KeyboardInterrupt:
         pass
     except Exception as err:
-        print("Unexepected exception {}".fomrat(err))
+        print("Unexepected exception {}".format(err))
+        raise err
     finally:
         socket.close()
