@@ -1,6 +1,6 @@
 import sys
 import time
-from rsockets2 import RMessageSocket, SocketType
+from rsockets2 import RMessageClient, TcpTransport, WebsocketTransport
 import logging
 import rx
 import rx.operators
@@ -46,8 +46,8 @@ public Mono<Void> triggerfnf(RSocketRequester requester, String payload) {
 
 if __name__ == "__main__":
     # Exchange socket_type if necessary
-    socket = RMessageSocket(socket_type=SocketType.TCP_SOCKET, keepalive=10000, maxlive=500000,
-                            hostname=SPRING_SERVER_HOSTNAME, port=SPRING_SERVER_PORT, url="ws://localhost:8080/rsocket", with_resume_support=True)
+    transport = TcpTransport(SPRING_SERVER_HOSTNAME, SPRING_SERVER_PORT)
+    socket = RMessageClient(transport, keepalive=10000, maxlive=500000)
 
     print("This expects Spring MessageMapping 'test.controller.mono' returning a Mono<Map<String, byte[]>>")
     print("This expects Spring MessageMapping 'test.controller.flux' returning a Flux<Map<String, byte[]>>")
@@ -79,12 +79,21 @@ if __name__ == "__main__":
             start = time.time()
             return socket.request_response('test.controller.mono')
 
+        def error(err):
+            print(err)
+            logging.error(err, exc_info=True)
+
         rx.timer(0.5).pipe(
             rx.operators.flat_map(lambda x: continous_request_response()),
             rx.operators.repeat()
         ).subscribe(on_next=lambda x: adder(
             x), on_error=lambda err: print("Oh my god it failed: {}".format(err)))
 
+        # rx.timer(0.5).pipe(
+        #     rx.operators.flat_map(lambda x: continous_request_response()),
+        #     rx.operators.repeat()
+        # ).subscribe(on_next=lambda x: adder(
+        #     x), on_error=lambda err: error(err))
         # Test Request Response Error
         # socket.request_response('test.controller.mono.error').subscribe(
         #     on_error=lambda err: print("Perfect! It failed: {}".format(err)))
@@ -93,9 +102,13 @@ if __name__ == "__main__":
         # socket.request_stream('test.controller.flux').subscribe(on_next=lambda x: print(
         #     "Received Size: {} mb".format(sys.getsizeof(x) / 1000000.0)), on_error=lambda err: print("Oh my god it failed: {}".format(err)), on_completed=lambda: print("Request Stream Complete"))
 
+        # socket.request_stream('test.controller.flux').subscribe(on_next=lambda x: print(
+        #     "Received Size: {} mb".format(sys.getsizeof(x) / 1000000.0)), on_error=lambda err: error(err), on_completed=lambda: print("Request Stream Complete"))
+
+
         # # # Test Fire And Forget
         # socket.request_response(
-        #     'test.controller.triggerfnf').subscribe()
+            # 'test.controller.triggerfnf').subscribe()
 
         while True:
             time.sleep(1.0)

@@ -15,8 +15,11 @@ class CancelFrame(Frame_ABC):
         frame.stream_id = stream_id
         return frame
 
+    def __len__(self):
+        return 6
+
     def to_bytes(self):
-        bufferSize = 6
+        bufferSize = len(self)
         data = bytearray(bufferSize)
 
         struct.pack_into(">I", data, 0, self.stream_id)

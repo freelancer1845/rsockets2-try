@@ -20,13 +20,14 @@ class RequestNFrame(Frame_ABC):
         frame.n = struct.unpack_from(">I", full_data, data_read)
         return frame
 
+    def __len__(self):
+        return 10
+
     def to_bytes(self):
         if self.stream_id == 0:
             raise ValueError("Stream ID must be set!")
 
-        bufferSize = 10
-
-        data = bytearray(bufferSize)
+        data = bytearray(len(self))
 
         struct.pack_into(">I", data, 0, self.stream_id)
         dataWritten = 4

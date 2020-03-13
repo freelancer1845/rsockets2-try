@@ -1,4 +1,6 @@
-from rsockets2 import SocketType, RSocket
+from rsockets2.transport import AbstractTransport
+from .rsocket_client import RSocketClient
+from .common import RSocketConfig
 import rsockets2.frames as frames
 import logging
 import json
@@ -7,21 +9,23 @@ import rx
 import rx.operators as op
 
 
-class RMessageSocket(object):
+class RMessageClient(object):
 
     def __init__(self,
-                 socket_type: SocketType,
+                 transport: AbstractTransport,
                  keepalive=30000,
                  maxlive=10000,
-                 data_mime_type=b"application/json",
-                 *args,
-                 **kwargs):
+                 data_mime_type=b"application/json"):
         super().__init__()
 
         self._log = logging.getLogger("rsockets2.message")
 
-        self.rsocket = RSocket(socket_type, keepalive, maxlive,
-                               b"message/x.rsocket.routing.v0", data_mime_type, *args, **kwargs)
+        config = RSocketConfig()
+        config.keepalive_time = keepalive
+        config.max_liftime = maxlive
+        config.data_mime_type = data_mime_type
+
+        self.rsocket = RSocketClient(config, transport)
 
         self.decoder = lambda x: x
         self.encoder = lambda x: x
@@ -53,15 +57,15 @@ class RMessageSocket(object):
 
     def request_response(self, route: str, data: typing.Union[bytes, typing.Dict] = None) -> rx.Observable:
         data = self._check_data_none(data)
-        return self.rsocket.request_response(meta_data=route.encode('ASCII'), data=self.encoder(data))
+        return self.rsocket.request_response(meta_data=self._encode_route_name(route), data=self.encoder(data))
 
     def request_stream(self, route: str, data: typing.Union[bytes, typing.Dict] = None) -> rx.Observable:
         data = self._check_data_none(data)
-        return self.rsocket.request_stream(meta_data=route.encode('ASCII'), data=self.encoder(data))
+        return self.rsocket.request_stream(meta_data=self._encode_route_name(route), data=self.encoder(data))
 
     def fire_and_forget(self, route: str, data: typing.Union[bytes, typing.Dict] = None) -> rx.Observable:
         data = self._check_data_none(data)
-        return self.rsocket.fire_and_forget(meta_data=route.encode('ASCII'), data=self.encoder(data))
+        return self.rsocket.fire_and_forget(meta_data=self._encode_route_name(route), data=self.encoder(data))
 
     def _setup_handler(self):
         self.rsocket.on_fire_and_forget = self._on_fire_and_forget
@@ -96,11 +100,13 @@ class RMessageSocket(object):
         routeLength = meta_data[0]
         return meta_data[1:(routeLength + 1)].decode('UTF-8')
 
+    def _encode_route_name(self, route_name: str) -> bytes:
+        meta_data = bytearray(route_name.encode('ASCII'))
+        meta_data.insert(0, len(meta_data))
+        return meta_data
+
     def _check_data_none(self, data):
         if data == None:
-            if self.rsocket.data_mime_type == b'application/json':
-                data = {}
-            else:
-                data = bytes(0)
+            data = {}
 
         return data

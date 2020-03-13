@@ -30,10 +30,7 @@ class RequestFNF(Frame_ABC):
         frame.request_data = full_data[data_read:]
         return frame
 
-    def to_bytes(self):
-        if self.stream_id == 0:
-            raise ValueError("Stream ID must be set!")
-
+    def __len__(self):
         bufferSize = 6
 
         if self.meta_data != None:
@@ -42,7 +39,13 @@ class RequestFNF(Frame_ABC):
 
         bufferSize += len(self.request_data)
 
-        data = bytearray(bufferSize)
+        return bufferSize
+
+    def to_bytes(self):
+        if self.stream_id == 0:
+            raise ValueError("Stream ID must be set!")
+        
+        data = len(self)
 
         struct.pack_into(">I", data, 0, self.stream_id)
         dataWritten = 4

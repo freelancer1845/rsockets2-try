@@ -98,11 +98,21 @@ class RSocket(object):
                 raise ValueError('Parameter "url" missing (websocket)')
             self.url = kwargs['url']
 
-    def open(self):
+        # resume
+        if with_resume_support == True:
+            self._setup_resume_support()
+
+    def _open_socket(self) -> Socket_ABC:
         if self.socket_type == SocketType.TCP_SOCKET:
-            self._createTcpSocket()
-        if self.socket_type == SocketType.WEBSOCKET:
-            self._createWebsocket()
+            return self._createTcpSocket()
+        elif self.socket_type == SocketType.WEBSOCKET:
+            return self._createWebsocket()
+        else:
+            raise ValueError(
+                "Unsupported Socket Type {}".format(self.socket_type))
+
+    def open(self):
+        self.socket = self._open_socket()
         self._negotiate()
 
     def close(self):
@@ -333,6 +343,28 @@ class RSocket(object):
     def _handleStreamZeroErrors(self, error: frames.ErrorFrame):
         self._log.debug(
             "Error with StreamID=0. This will most likely close the connect!")
+
+    def _try_resume(self):
+
+        def try_reconnect():
+            tcpSocket = RTcpSocket(self.with_resume_support)
+            tcpSocket.set_receive_handler(self._handleFrame)
+            tcpSocket.set_socket_closed_handler(self._handle_socket_closed)
+            tcpSocket.connect(self.hostname, self.port)
+            self.socket = tcpSocket
+
+        return rx.pipe(
+            op.map(lambda err: self._open_socket()),
+            op.catch(lambda ex, src: src.pipe(op.delay(op.timedelta(seconds=1.0))))
+        )
+
+    def _setup_resume_support(self):
+        # Replace standard socket_closed_thrower
+        self._socket_closed_thrower = rx.subject.Subject()
+        self._socket_closed_subject.pipe(
+            op.take(1),
+            self._try_resume(),
+        )
 
     def _get_new_stream_id(self) -> int:
         self._stream_id_lock.acquire(blocking=True)

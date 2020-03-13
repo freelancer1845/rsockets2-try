@@ -36,10 +36,7 @@ class Payload(Frame_ABC):
         frame.payload = full_data[data_read:]
         return frame
 
-    def to_bytes(self):
-        if self.stream_id == 0:
-            raise ValueError("Stream ID must be set!")
-
+    def __len__(self):
         bufferSize = 6
 
         if self.meta_data != None:
@@ -47,6 +44,13 @@ class Payload(Frame_ABC):
             bufferSize += len(self.meta_data)
 
         bufferSize += len(self.payload)
+        return bufferSize
+
+    def to_bytes(self):
+        if self.stream_id == 0:
+            raise ValueError("Stream ID must be set!")
+
+        bufferSize = len(self)
 
         data = bytearray(bufferSize)
 

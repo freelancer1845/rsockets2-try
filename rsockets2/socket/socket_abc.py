@@ -68,6 +68,7 @@ class Socket_ABC(ABC):
         self.__running = False
         self._close_internal()
 
+
     @abstractmethod
     def _close_internal(self):
         raise NotImplementedError()
@@ -80,13 +81,13 @@ class Socket_ABC(ABC):
             while self.__running:
                 data = self._send_queue.get()[1]
 
-                self._send_frame_internal(data)
-
                 self._send_position += len(data)
                 if self.resume_support_enabled == True:
                     self._data_send_store[self._send_position] = data
 
                     self._clear_data_send_store()
+
+                self._send_frame_internal(data)
 
         except Exception as err:
             if self.__running == True:

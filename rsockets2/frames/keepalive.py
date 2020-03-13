@@ -24,8 +24,11 @@ class KeepAliveFrame(Frame_ABC):
         frame.data = full_data[data_read:]
         return frame
 
+    def __len__(self):
+        return 14 + len(self.data)
+
     def to_bytes(self):
-        bufferSize = 14 + len(self.data)
+        bufferSize = len(self)
         data = bytearray(bufferSize)
 
         struct.pack_into(">I", data, 0, 0)

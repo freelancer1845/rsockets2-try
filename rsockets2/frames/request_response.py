@@ -29,17 +29,19 @@ class RequestResponse(Frame_ABC):
         frame.request_data = full_data[data_read:]
         return frame
 
-    def to_bytes(self):
-        if self.stream_id == 0:
-            raise ValueError("Stream ID must be set!")
-
+    def __len__(self):
         bufferSize = 10
 
         if self.meta_data != None:
             bufferSize += 3
             bufferSize += len(self.meta_data)
+        return bufferSize
 
-        bufferSize += len(self.request_data)
+    def to_bytes(self):
+        if self.stream_id == 0:
+            raise ValueError("Stream ID must be set!")
+
+        bufferSize = len(self)
 
         data = bytearray(bufferSize)
 

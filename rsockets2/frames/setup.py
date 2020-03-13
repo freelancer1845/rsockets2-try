@@ -2,6 +2,7 @@ from .common import FrameType, read_meta_data_length
 import struct
 from .frame_abc import Frame_ABC
 from abc import abstractmethod
+from ..common import RSocketConfig
 
 
 class SetupFrame(Frame_ABC):
@@ -19,6 +20,20 @@ class SetupFrame(Frame_ABC):
         self.meta_data = None
         self.setup_payload = bytes(0)
         self.honors_lease = False
+
+    @classmethod
+    def from_config(cls, config: RSocketConfig):
+        frame = SetupFrame()
+        frame.major_version = config.major_version
+        frame.minor_version = config.minor_version
+        frame.keepalive_time = config.keepalive_time
+        frame.max_lifetime = config.max_liftime
+        frame.resume_identification_token = config.resume_identification_token
+        frame.meta_data_mime_type = config.meta_data_mime_type
+        frame.data_mime_type = config.data_mime_type
+        frame.honors_lease = config.honors_lease
+
+        return frame
 
     @classmethod
     def from_data(cls, stream_id: int, flags: int, full_data: bytes):
@@ -63,7 +78,7 @@ class SetupFrame(Frame_ABC):
 
         return frame
 
-    def to_bytes(self):
+    def __len__(self):
         bufferSize = 18
         if self.resume_identification_token != None:
             bufferSize += 2
@@ -75,6 +90,10 @@ class SetupFrame(Frame_ABC):
         if self.data_mime_type != None:
             bufferSize += len(self.data_mime_type)
         bufferSize += len(self.setup_payload)
+        return bufferSize
+
+    def to_bytes(self):
+        bufferSize = len(self)
 
         data = bytearray(bufferSize)
 

@@ -44,16 +44,19 @@ class ErrorFrame(Frame_ABC):
         frame.error_data = full_data[data_read:].decode('UTF-8')
         return frame
 
-    def to_bytes(self):
-        if self.stream_id == 0:
-            raise ValueError("Stream ID must be set!")
-
+    def __len__(self):
         bufferSize = 6
 
         bufferSize += 4  # Error Codes
         bufferSize += len(self.error_data)
 
-        data = bytearray(bufferSize)
+        return bufferSize
+
+    def to_bytes(self):
+        if self.stream_id == 0:
+            raise ValueError("Stream ID must be set!")
+    
+        data = bytearray(len(self))
 
         struct.pack_into(">I", data, 0, self.stream_id)
         dataWritten = 4

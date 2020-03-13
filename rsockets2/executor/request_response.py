@@ -1,24 +1,23 @@
-from rsockets2.socket import Socket_ABC
+from ..connection import AbstractConnection
 import rx
 import rx.core
 import rx.operators as op
 import functools
 import rx.scheduler
 import threading
-from rsockets2.frames import RequestResponse, RequestStream
+from rsockets2.frames import RequestResponse, RequestStream, Payload
 
 
 def _request_response_executor(
-        socket: Socket_ABC,
+        connection: AbstractConnection,
         frame: RequestResponse,
-        payloads: rx.Observable,
         map_to_payload,
         is_single_element,
         observer, scheduler):
 
     if scheduler is None:
         scheduler = rx.scheduler.ThreadPoolScheduler(max_workers=20)
-    response_obs = payloads.pipe(
+    response_obs = connection.recv_observable_filter_type(Payload).pipe(
         op.observe_on(scheduler),
         op.filter(lambda payload: payload.stream_id == frame.stream_id),
     )
@@ -31,13 +30,13 @@ def _request_response_executor(
 
     disposable = response_obs.subscribe(on_next=lambda x: observer.on_next(
         x), on_error=lambda err: observer.on_error(err), on_completed=lambda: observer.on_completed())
-    socket.send_frame(frame)
+    connection.queue_frame(frame)
     return lambda: disposable.dispose()
 
 
-def request_stream_executor(socket: Socket_ABC, frame: RequestStream, payloads: rx.Observable, map_to_payload=True) -> rx.core.Observable:
-    return rx.create(functools.partial(_request_response_executor, socket, frame, payloads, map_to_payload, False))
+def request_stream_executor(connection: AbstractConnection, frame: RequestStream, map_to_payload=True) -> rx.core.Observable:
+    return rx.create(functools.partial(_request_response_executor, connection, frame, map_to_payload, False))
 
 
-def request_response_executor(socket: Socket_ABC, frame: RequestResponse, payloads: rx.Observable, map_to_payload=True) -> rx.core.Observable:
-    return rx.create(functools.partial(_request_response_executor, socket, frame, payloads, map_to_payload, True))
+def request_response_executor(connection: AbstractConnection, frame: RequestResponse, map_to_payload=True) -> rx.core.Observable:
+    return rx.create(functools.partial(_request_response_executor, connection, frame, map_to_payload, True))
