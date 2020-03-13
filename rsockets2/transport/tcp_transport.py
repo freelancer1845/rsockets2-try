@@ -30,6 +30,7 @@ class TcpTransport(AbstractTransport):
         self._current_frame = None
         self._read_buffer_size = 3
 
+
     def connect(self):
         self._log.debug("Connecting to {}:{}".format(self._host, self._port))
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

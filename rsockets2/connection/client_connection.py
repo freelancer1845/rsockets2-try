@@ -1,6 +1,6 @@
 from .abstract_connection import AbstractConnection
 from ..transport import AbstractTransport
-from ..frames import SetupFrame, Frame_ABC
+from ..frames import SetupFrame, Frame_ABC, ErrorFrame, ErrorCodes
 from ..common import RSocketConfig
 from .keepalive_support import KeepaliveSupport
 import threading
@@ -8,6 +8,7 @@ import rx
 import rx.subject
 from queue import PriorityQueue
 import logging
+
 
 class PriorityEntry(object):
 
@@ -17,6 +18,7 @@ class PriorityEntry(object):
 
     def __lt__(self, other):
         return self.priority < other.priority
+
 
 class ClientConnection(AbstractConnection):
 
@@ -72,10 +74,16 @@ class ClientConnection(AbstractConnection):
     def _send_loop(self):
         try:
             while self._running:
-                data = self._send_queue.get().data
-
-                self.increase_send_position(len(data))
-                self._transport.send_frame(data)
+                try:
+                    data = self._send_queue.get().data
+                    self.increase_send_position(len(data))
+                    self._transport.send_frame(data)
+                except Exception as error:
+                    if self._running != False:
+                        raise error
+                    else:
+                        self._log.debug(
+                            "Silent socket error because its already closed.", exc_info=True)
 
         except Exception as err:
             if self._running == True:
@@ -88,9 +96,16 @@ class ClientConnection(AbstractConnection):
     def _recv_loop(self):
         try:
             while self._running:
-                frame = self._transport.recv_frame()
-                self.increase_recv_position(len(frame))
-                self._recv_subject.on_next(frame)
+                try:
+                    frame = self._transport.recv_frame()
+                    self.increase_recv_position(len(frame))
+                    self._recv_subject.on_next(frame)
+                except Exception as error:
+                    if self._running != False:
+                        raise error
+                    else:
+                        self._log.debug(
+                            "Silent socket error because its already closed.", exc_info=True)
 
         except Exception as err:
             self._recv_subject.on_error(err)

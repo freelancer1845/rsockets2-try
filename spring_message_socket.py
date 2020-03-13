@@ -4,7 +4,7 @@ from rsockets2 import RMessageClient, TcpTransport, WebsocketTransport
 import logging
 import rx
 import rx.operators
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 SPRING_SERVER_HOSTNAME = 'localhost'
 SPRING_SERVER_PORT = 24512
@@ -83,7 +83,7 @@ if __name__ == "__main__":
             print(err)
             logging.error(err, exc_info=True)
 
-        rx.timer(0.5).pipe(
+        rx.timer(1).pipe(
             rx.operators.flat_map(lambda x: continous_request_response()),
             rx.operators.repeat()
         ).subscribe(on_next=lambda x: adder(
@@ -109,8 +109,11 @@ if __name__ == "__main__":
         # # # Test Fire And Forget
         # socket.request_response(
             # 'test.controller.triggerfnf').subscribe()
-
+        count = 0
         while True:
+            count += 1
+            if count == 5:
+                break
             time.sleep(1.0)
     except KeyboardInterrupt:
         pass

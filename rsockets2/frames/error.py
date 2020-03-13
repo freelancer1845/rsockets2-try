@@ -53,8 +53,6 @@ class ErrorFrame(Frame_ABC):
         return bufferSize
 
     def to_bytes(self):
-        if self.stream_id == 0:
-            raise ValueError("Stream ID must be set!")
     
         data = bytearray(len(self))
 
