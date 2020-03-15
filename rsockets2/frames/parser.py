@@ -9,6 +9,7 @@ from .keepalive import KeepAliveFrame
 from .request_n import RequestNFrame
 from .request_fnf import RequestFNF
 from .cancel import CancelFrame
+from .resume import ResumeFrame, ResumeOkFrame
 import struct
 from typing import Union
 
@@ -37,6 +38,10 @@ class FrameParser(object):
             return RequestFNF.from_data(stream_id, flags, data)
         elif frame_type == FrameType.CANCEL:
             return CancelFrame.from_data(stream_id, flags, data)
+        elif frame_type == FrameType.RESUME:
+            return ResumeFrame.from_data(stream_id, flags, data)
+        elif frame_type == FrameType.RESUME_OK:
+            return ResumeOkFrame.from_data(stream_id, flags, data)
         else:
             raise ValueError("Unsupported Frame Type: {}".format(frame_type))
 

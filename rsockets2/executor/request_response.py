@@ -20,6 +20,7 @@ def _request_response_executor(
     response_obs = connection.recv_observable_filter_type(Payload).pipe(
         op.observe_on(scheduler),
         op.filter(lambda payload: payload.stream_id == frame.stream_id),
+        op.take_until(connection.destroy_observable())
     )
 
     if is_single_element == True:

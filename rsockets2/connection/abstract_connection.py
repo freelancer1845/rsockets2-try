@@ -19,12 +19,18 @@ class AbstractConnection(ABC):
         self._used_stream_ids = []
         self._stream_id_lock = threading.Lock()
 
+        self.token = bytes(0)
+
     @abstractmethod
     def queue_frame(self, frame: Frame_ABC):
         pass
 
     @abstractmethod
     def recv_observable(self):
+        pass
+
+    @abstractmethod
+    def destroy_observable(self):
         pass
 
     def recv_observable_filter_type(self, frame_type):
@@ -37,18 +43,20 @@ class AbstractConnection(ABC):
         with self._recv_lock:
             return self._last_recv_position
 
-    def increase_recv_position(self, value: int):
+    def increase_recv_position(self, value: int) -> int:
         with self._recv_lock:
             self._last_recv_position += value
+            return self._last_recv_position
 
     @property
     def send_position(self):
         with self._send_lock:
             return self._send_position
 
-    def increase_send_position(self, value: int):
+    def increase_send_position(self, value: int) -> int:
         with self._send_lock:
             self._send_position += value
+            return self._send_position
 
     def get_new_stream_id(self) -> int:
         self._stream_id_lock.acquire(blocking=True)

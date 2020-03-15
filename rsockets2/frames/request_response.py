@@ -30,11 +30,13 @@ class RequestResponse(Frame_ABC):
         return frame
 
     def __len__(self):
-        bufferSize = 10
+        bufferSize = 6
 
         if self.meta_data != None:
             bufferSize += 3
             bufferSize += len(self.meta_data)
+        if self.request_data != None:
+            bufferSize += len(self.request_data)
         return bufferSize
 
     def to_bytes(self):

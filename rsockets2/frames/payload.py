@@ -39,7 +39,7 @@ class Payload(Frame_ABC):
     def __len__(self):
         bufferSize = 6
 
-        if self.meta_data != None:
+        if len(self.meta_data) > 0:
             bufferSize += 3
             bufferSize += len(self.meta_data)
 
@@ -70,7 +70,7 @@ class Payload(Frame_ABC):
         struct.pack_into(">H", data, dataWritten, type_and_flags)
         dataWritten += 2
 
-        if self.meta_data != None:
+        if len(self.meta_data) > 0:
             meta_data_length = len(self.meta_data)
             data[dataWritten] = meta_data_length >> 16 & 0xFF
             dataWritten += 1

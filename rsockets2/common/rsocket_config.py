@@ -9,5 +9,5 @@ class RSocketConfig(object):
         self.max_liftime = 100000
         self.meta_data_mime_type = b"message/x.rsocket.routing.v0"
         self.data_mime_type = b"application/json"
-        self.resume_identification_token = None
+        self.resume_support = False
         self.honors_lease = False

@@ -9,3 +9,7 @@ from .request_n import RequestNFrame
 from .request_fnf import RequestFNF
 from .cancel import CancelFrame
 from .frame_abc import Frame_ABC
+from .resume import ResumeFrame, ResumeOkFrame
+
+PositionRelevantFrames = (RequestResponse, RequestFNF, RequestStream,
+                          RequestNFrame, CancelFrame, ErrorFrame, Payload)

@@ -1,2 +1,2 @@
-from .request_response import RequestResponseHandler
-from .request_stream import RequestStreamHandler
+from .request_response import request_response_pipe
+from .request_stream import request_stream_pipe

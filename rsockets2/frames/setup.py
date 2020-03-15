@@ -28,7 +28,6 @@ class SetupFrame(Frame_ABC):
         frame.minor_version = config.minor_version
         frame.keepalive_time = config.keepalive_time
         frame.max_lifetime = config.max_liftime
-        frame.resume_identification_token = config.resume_identification_token
         frame.meta_data_mime_type = config.meta_data_mime_type
         frame.data_mime_type = config.data_mime_type
         frame.honors_lease = config.honors_lease

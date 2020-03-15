@@ -53,7 +53,7 @@ class ErrorFrame(Frame_ABC):
         return bufferSize
 
     def to_bytes(self):
-    
+
         data = bytearray(len(self))
 
         struct.pack_into(">I", data, 0, self.stream_id)
@@ -66,3 +66,11 @@ class ErrorFrame(Frame_ABC):
 
         data[dataWritten:] = self.error_data
         return data
+
+    @classmethod
+    def from_info(cls, message: str, stream_id: int = 0, code: ErrorCodes = ErrorCodes.APPLICATION_ERROR):
+        frame = ErrorFrame()
+        frame.stream_id = stream_id
+        frame.error_code = code
+        frame.error_data = message.encode('ASCII')
+        return frame

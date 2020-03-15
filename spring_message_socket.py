@@ -47,6 +47,7 @@ public Mono<Void> triggerfnf(RSocketRequester requester, String payload) {
 if __name__ == "__main__":
     # Exchange socket_type if necessary
     transport = TcpTransport(SPRING_SERVER_HOSTNAME, SPRING_SERVER_PORT)
+    # transport = WebsocketTransport("ws://localhost:8080/rsocket")
     socket = RMessageClient(transport, keepalive=10000, maxlive=500000)
 
     print("This expects Spring MessageMapping 'test.controller.mono' returning a Mono<Map<String, byte[]>>")
@@ -83,7 +84,7 @@ if __name__ == "__main__":
             print(err)
             logging.error(err, exc_info=True)
 
-        rx.timer(1).pipe(
+        rx.timer(1.0).pipe(
             rx.operators.flat_map(lambda x: continous_request_response()),
             rx.operators.repeat()
         ).subscribe(on_next=lambda x: adder(
@@ -98,20 +99,22 @@ if __name__ == "__main__":
         # socket.request_response('test.controller.mono.error').subscribe(
         #     on_error=lambda err: print("Perfect! It failed: {}".format(err)))
 
-        # # Test Request Stream
-        # socket.request_stream('test.controller.flux').subscribe(on_next=lambda x: print(
-        #     "Received Size: {} mb".format(sys.getsizeof(x) / 1000000.0)), on_error=lambda err: print("Oh my god it failed: {}".format(err)), on_completed=lambda: print("Request Stream Complete"))
+        # Test Request Stream
+        socket.request_stream('test.controller.flux').subscribe(on_next=lambda x: print(
+            "Received Size: {} mb".format(sys.getsizeof(x) / 1000000.0)), on_error=lambda err: print("Oh my god it failed: {}".format(err)), on_completed=lambda: print("Request Stream Complete"))
 
-        # socket.request_stream('test.controller.flux').subscribe(on_next=lambda x: print(
-        #     "Received Size: {} mb".format(sys.getsizeof(x) / 1000000.0)), on_error=lambda err: error(err), on_completed=lambda: print("Request Stream Complete"))
+        socket.request_stream('test.controller.flux').subscribe(on_next=lambda x: print(
+            "Received Size: {} mb".format(sys.getsizeof(x) / 1000000.0)), on_error=lambda err: error(err), on_completed=lambda: print("Request Stream Complete"))
 
+        # # Test Fire And Forget
+        socket.request_response(
+            'test.controller.triggerfnf').subscribe()
 
-        # # # Test Fire And Forget
-        # socket.request_response(
-            # 'test.controller.triggerfnf').subscribe()
+        socket.register_fire_and_forget_handler(
+            "test.controller.triggerfnf", lambda x: print(x))
         count = 0
         while True:
-            count += 1
+            # count += 1
             if count == 5:
                 break
             time.sleep(1.0)

@@ -86,12 +86,13 @@ if __name__ == "__main__":
         socket.request_stream(meta_data=b'test.controller.flux', data=bytes(0)).subscribe(on_next=lambda x: print(
             "Received Size: {} mb".format(len(x) / 1000000.0)), on_error=lambda err: print("Oh my god it failed: {}".format(err)), on_completed=lambda: print("Request Stream Complete"))
 
-        # Test Fire And Forget
-        socket.request_response(
-            meta_data=b'test.controller.triggerfnf', data=bytes(0)).subscribe()
+   
 
         time_waited = 0
         while True:
+            # Test Fire And Forget
+            socket.request_response(
+                meta_data=b'test.controller.triggerfnf', data=bytes(0)).subscribe()
             time.sleep(1.0)
             time_waited += 1
             if time_waited > 30:

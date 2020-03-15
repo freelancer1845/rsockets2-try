@@ -24,6 +24,7 @@ class RMessageClient(object):
         config.keepalive_time = keepalive
         config.max_liftime = maxlive
         config.data_mime_type = data_mime_type
+        config.resume_support = True
 
         self.rsocket = RSocketClient(config, transport)
 
@@ -75,8 +76,14 @@ class RMessageClient(object):
     def _on_fire_and_forget(self, frame: frames.RequestFNF):
         route_name = self._get_route_name(frame.meta_data)
         if route_name in self._fire_and_forget_handler:
-            self._fire_and_forget_handler[route_name](
-                self.decoder(frame.request_data))
+            try:
+                decoded = self.decoder(frame.request_data)
+                self._fire_and_forget_handler[route_name](
+                    self.decoder(frame.request_data))
+            except Exception as err:
+                self._log.warn(
+                    "Failed to decode Fire And Forget frame: {}".format(err), exc_info=True)
+
         else:
             self._log.warn(
                 "Received FNF for Unknown Destination '{}'".format(route_name))
@@ -97,6 +104,7 @@ class RMessageClient(object):
             return rx.throw(Exception("Unknown Destination '{}'".format(route_name)))
 
     def _get_route_name(self, meta_data: bytes):
+
         routeLength = meta_data[0]
         return meta_data[1:(routeLength + 1)].decode('UTF-8')
 

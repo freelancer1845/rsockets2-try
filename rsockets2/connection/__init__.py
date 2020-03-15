@@ -1,2 +1,3 @@
 from .abstract_connection import AbstractConnection
 from .client_connection import ClientConnection
+from .resumable_client_connection import ResumableClientConnection

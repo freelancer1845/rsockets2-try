@@ -11,7 +11,7 @@ class WebsocketTransport(AbstractTransport):
         super().__init__()
         self._log = logging.getLogger("rsockets2.transport.WebsocketTransport")
         self._url = url
-        self._ws: websocket.WebSocketApp
+        self._ws: websocket.WebSocketApp = None
         self._message_buffer = []
 
         self._recv_queue = Queue(1000)
@@ -38,7 +38,7 @@ class WebsocketTransport(AbstractTransport):
             pass
 
         ws = websocket.WebSocketApp(
-            url=self.url,
+            url=self._url,
             on_data=self._on_message,
             on_error=on_error,
             on_close=on_close,

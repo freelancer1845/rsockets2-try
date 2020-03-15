@@ -38,6 +38,7 @@ class ClientConnection(AbstractConnection):
 
         self._send_queue = PriorityQueue()
         self._recv_subject = rx.subject.Subject()
+        self._destroy_subject = rx.subject.Subject()
 
     def open(self):
         self._running = True
@@ -64,11 +65,15 @@ class ClientConnection(AbstractConnection):
     def recv_observable(self):
         return self._recv_subject
 
+    def destroy_observable(self):
+        return self._destroy_subject
+
     def close(self):
         self._running = False
         if self._keepalive_support != None:
             self._keepalive_support.stop()
 
+        self._destroy_subject.on_next(0)
         self._transport.disconnect()
 
     def _send_loop(self):
