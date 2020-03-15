@@ -33,8 +33,12 @@ class TcpTransport(AbstractTransport):
 
     def connect(self):
         self._log.debug("Connecting to {}:{}".format(self._host, self._port))
-        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._socket.connect((self._host, self._port))
+        try:
+            self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._socket.connect((self._host, self._port))
+        except OSError as error:
+            # wrap os error into connection error
+            raise ConnectionError(error)
 
     def disconnect(self):
         self._log.debug("Disconnecting socket at: {}:{}".format(

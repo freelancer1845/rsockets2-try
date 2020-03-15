@@ -181,7 +181,7 @@ class ResumableClientConnection(AbstractConnection):
                                 SendCacheEntry(pos, time.time(), frame))
 
                     self._transport.send_frame(frame)
-                except Exception as error:
+                except (ConnectionError, OSError) as error:
                     if self._state == ConnectionState.CONNECTED:
                         self._log.debug(
                             "Connection Error - Trying to resume: {}".format(error))
@@ -190,10 +190,8 @@ class ResumableClientConnection(AbstractConnection):
                         self._log.debug(
                             "Silent socket error because its already closed.", exc_info=True)
                     elif self._state == ConnectionState.RESUMING:
-                        pass
-                        # self._log.error("SendMainThread had exception in RESUME state ...: {}".format(
-                        #     error), exc_info=True)
-                        # self._change_state(ConnectionState.DISCONNECTED)
+                        self._log.debug(
+                                "Exception in send_loop. But already in RESUMING state. Silencing exception!")
 
     def _recv_loop(self):
         try:
@@ -205,7 +203,7 @@ class ResumableClientConnection(AbstractConnection):
                             self.increase_recv_position(len(frame))
 
                         self._recv_publisher.on_next(frame)
-                    except Exception as error:
+                    except (ConnectionError, OSError) as error:
 
                         if self._state == ConnectionState.CONNECTED:
                             self._log.debug(
@@ -215,8 +213,8 @@ class ResumableClientConnection(AbstractConnection):
                             self._log.debug(
                                 "Silent socket error because its already closed.", exc_info=True)
                         elif self._state == ConnectionState.RESUMING:
-                            self._log.error(
-                                "Recvloop ran even though we were in Resume state!  This could lead to race conditions")
+                            self._log.debug(
+                                "Exception in recvloop. But already in RESUMING state. Silencing exception!")
                 elif self._state == ConnectionState.RESUMING:
                     with self._state_change_condition:
                         self._state_change_condition.wait()
