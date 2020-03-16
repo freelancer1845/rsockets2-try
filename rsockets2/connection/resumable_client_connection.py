@@ -93,7 +93,6 @@ class ResumableClientConnection(AbstractConnection):
         return self._destroy_publisher
 
     def open(self):
-        rx.timer(5.0).subscribe(on_next=lambda x: self._transport._ws.shutdown())
         self._create_error_logger()
         self._transport.connect()
         self._negotiate_connection()
@@ -129,7 +128,7 @@ class ResumableClientConnection(AbstractConnection):
             except Exception as error:
                 self._log.debug(
                     "Silent exception while closing transport on resume", exc_info=True)
-            time.sleep(2.0)
+            time.sleep(1.0)
             try:
                 self._transport.connect()
 
@@ -153,7 +152,7 @@ class ResumableClientConnection(AbstractConnection):
                     self._log.error(
                         "Unexpected answer while resuming: {}".format(answer))
                     self._change_state(ConnectionState.DISCONNECTED)
-            except ConnectionError as error:
+            except (ConnectionError, TimeoutError) as error:
                 self._log.debug(
                     "Connection error while resuming. Trying again in 1s ...", exc_info=True)
             except Exception as error:

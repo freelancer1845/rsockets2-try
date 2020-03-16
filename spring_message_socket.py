@@ -100,11 +100,11 @@ if __name__ == "__main__":
         #     on_error=lambda err: print("Perfect! It failed: {}".format(err)))
 
         # Test Request Stream
-        socket.request_stream('test.controller.flux').subscribe(on_next=lambda x: print(
-            "Received Size: {} mb".format(sys.getsizeof(x) / 1000000.0)), on_error=lambda err: print("Oh my god it failed: {}".format(err)), on_completed=lambda: print("Request Stream Complete"))
+        # socket.request_stream('test.controller.flux').subscribe(on_next=lambda x: print(
+        #     "Received Size: {} mb".format(sys.getsizeof(x) / 1000000.0)), on_error=lambda err: print("Oh my god it failed: {}".format(err)), on_completed=lambda: print("Request Stream Complete"))
 
-        socket.request_stream('test.controller.flux').subscribe(on_next=lambda x: print(
-            "Received Size: {} mb".format(sys.getsizeof(x) / 1000000.0)), on_error=lambda err: error(err), on_completed=lambda: print("Request Stream Complete"))
+        # socket.request_stream('test.controller.flux').subscribe(on_next=lambda x: print(
+        #     "Received Size: {} mb".format(sys.getsizeof(x) / 1000000.0)), on_error=lambda err: error(err), on_completed=lambda: print("Request Stream Complete"))
 
         # # Test Fire And Forget
         socket.request_response(
