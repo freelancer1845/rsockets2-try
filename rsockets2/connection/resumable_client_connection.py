@@ -71,8 +71,11 @@ class ResumableClientConnection(AbstractConnection):
             name="RSocketResumableConnectionMain", daemon=True, target=self._send_and_control_loop)
         self._recv_thread = threading.Thread(
             name="RSocketResumableConnectionRecv", daemon=True, target=self._recv_loop)
+        self._keepalive_support = None
 
         self._state_change_condition = threading.Condition()
+
+        self._recv_thread_in_resume_event = threading.Event()
 
     def queue_frame(self, frame):
         if frame.stream_id == 0:
@@ -90,7 +93,7 @@ class ResumableClientConnection(AbstractConnection):
         return self._destroy_publisher
 
     def open(self):
-        rx.interval(5.0).subscribe(on_next=lambda x: self._transport._socket.close())
+        rx.timer(5.0).subscribe(on_next=lambda x: self._transport._ws.shutdown())
         self._create_error_logger()
         self._transport.connect()
         self._negotiate_connection()
@@ -126,6 +129,7 @@ class ResumableClientConnection(AbstractConnection):
             except Exception as error:
                 self._log.debug(
                     "Silent exception while closing transport on resume", exc_info=True)
+            time.sleep(2.0)
             try:
                 self._transport.connect()
 
@@ -152,7 +156,6 @@ class ResumableClientConnection(AbstractConnection):
             except ConnectionError as error:
                 self._log.debug(
                     "Connection error while resuming. Trying again in 1s ...", exc_info=True)
-                time.sleep(1.0)
             except Exception as error:
                 self._log.error(
                     "Unexpected exception while resuming.", exc_info=True)
@@ -168,7 +171,14 @@ class ResumableClientConnection(AbstractConnection):
     def _send_and_control_loop(self):
         while self._state != ConnectionState.DISCONNECTED:
             if self._state == ConnectionState.RESUMING:
+                print("Waiting for recv thread to reach resume")
+                try:
+                    self._recv_thread_in_resume_event.wait(timeout=5)
+                except TimeoutError as error:
+                    print("Waiting for recv thread timed out!")
+                    self._change_state(ConnectionState.DISCONNECTED)
                 self._try_resume()
+                
             elif self._state == ConnectionState.CONNECTED:
                 try:
                     frame = self._send_queue.get().data
@@ -191,7 +201,7 @@ class ResumableClientConnection(AbstractConnection):
                             "Silent socket error because its already closed.", exc_info=True)
                     elif self._state == ConnectionState.RESUMING:
                         self._log.debug(
-                                "Exception in send_loop. But already in RESUMING state. Silencing exception!")
+                            "Exception in send_loop. But already in RESUMING state. Silencing exception!")
 
     def _recv_loop(self):
         try:
@@ -216,8 +226,10 @@ class ResumableClientConnection(AbstractConnection):
                             self._log.debug(
                                 "Exception in recvloop. But already in RESUMING state. Silencing exception!")
                 elif self._state == ConnectionState.RESUMING:
+                    self._recv_thread_in_resume_event.set()
                     with self._state_change_condition:
                         self._state_change_condition.wait()
+                    self._recv_thread_in_resume_event.clear()
 
         except Exception as err:
             self._log.error(

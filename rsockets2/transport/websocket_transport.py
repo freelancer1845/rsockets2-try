@@ -3,6 +3,7 @@ from queue import Queue
 import logging
 import websocket
 import threading
+import time
 
 
 class WebsocketTransport(AbstractTransport):
@@ -11,8 +12,8 @@ class WebsocketTransport(AbstractTransport):
         super().__init__()
         self._log = logging.getLogger("rsockets2.transport.WebsocketTransport")
         self._url = url
-        self._ws: websocket.WebSocketApp = None
         self._message_buffer = []
+        self._ws: websocket.WebSocket = None
 
         self._recv_queue = Queue(1000)
 
@@ -21,46 +22,58 @@ class WebsocketTransport(AbstractTransport):
         self._runner: threading.Thread
 
     def connect(self):
-        self._log.debug("Trying to open Websocket at '{}'".format(self._log))
+        self._log.debug("Trying to open Websocket at '{}'".format(self._url))
 
-        open_event = threading.Event()
-        connect_error = None
+        # open_event = threading.Event()
+        # connect_error = None
 
-        def on_open(ws: websocket.WebSocket):
-            open_event.set()
+        # def on_open(ws: websocket.WebSocket):
+        #     open_event.set()
 
-        def on_error(ws, error):
-            nonlocal connect_error
-            connect_error = error
-            open_event.set()
+        # def on_error(ws, error):
+        #     nonlocal connect_error
+        #     connect_error = error
+        #     open_event.set()
 
-        def on_close(ws):
-            pass
+        # def on_close(ws):
+        #     pass
 
-        ws = websocket.WebSocketApp(
-            url=self._url,
-            on_data=self._on_message,
-            on_error=on_error,
-            on_close=on_close,
-            on_open=on_open,
-        )
-
-        self._runner = threading.Thread(
-            name="RSocket-Websocket", target=ws.run_forever, daemon=True)
-        self._runner.start()
-
-        open_event.wait(30.0)
-        if connect_error != None:
-            raise connect_error
+        if self._ws != None:
+            del self._ws
+        ws = websocket.WebSocket(enable_multithread=False)
         self._ws = ws
-        self._ws.on_error = self._on_error
-        self._ws.on_close = self._on_close
+        
+
+        self._ws.connect(self._url)
+        # ws = websocket.WebSocketApp(
+        #     url=self._url,
+        #     on_data=self._on_message,
+        #     on_error=on_error,
+        #     on_close=on_close,
+        #     on_open=on_open,
+        # )
+
+        # self._runner = threading.Thread(
+        #     name="RSocket-Websocket", target=ws.run_forever, daemon=True)
+        # self._runner.start()
+
+        # open_event.wait(30.0)
+        # if connect_error != None:
+        #     raise connect_error
+        # self._ws = ws
+        # self._closed = False
+        # self._ws.on_error = self._on_error
+        # self._ws.on_close = self._on_close
 
     def disconnect(self):
         if self._ws == None:
             raise ValueError(
                 "Trying to disconnect a websocket that never successfully connected!")
-        self._ws.close()
+        try:
+            self._ws.close()
+        except Exception as error:
+            self._log.error("Execption while disconnecting", exc_info=True)
+            raise error
 
     def _on_error(self, error):
         self._log.debug("Error in Websocket. {}".format(error))
@@ -70,13 +83,23 @@ class WebsocketTransport(AbstractTransport):
         self._closed = True
 
     def _send_bytes(self, frameBytes):
-        self._check_closed_and_error()
-        self._ws.send(frameBytes, opcode=websocket.ABNF.OPCODE_BINARY)
+        try:
+            self._ws.send_binary(frameBytes)
+        except websocket.WebSocketException as error:
+            raise ConnectionError(error)
+        # self._check_closed_and_error()
+        # self._ws.send(frameBytes, opcode=websocket.ABNF.OPCODE_BINARY)
 
     def _recv_bytes(self):
-        self._check_closed_and_error()
-        data = self._recv_queue.get(block=True)
-        return data
+        code, frame = self._ws.recv_data_frame()
+
+        if code == websocket.ABNF.OPCODE_BINARY or code == websocket.ABNF.OPCODE_TEXT:
+            return frame.data
+        else:
+            raise ConnectionError("Websocket error. Code: {}".format(code))
+        # self._check_closed_and_error()
+        # data = self._recv_queue.get(block=True)
+        # return data
 
     def _check_closed_and_error(self):
         if self._ws == None:

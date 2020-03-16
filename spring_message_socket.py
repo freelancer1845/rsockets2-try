@@ -4,7 +4,7 @@ from rsockets2 import RMessageClient, TcpTransport, WebsocketTransport
 import logging
 import rx
 import rx.operators
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 SPRING_SERVER_HOSTNAME = 'localhost'
 SPRING_SERVER_PORT = 24512
@@ -46,8 +46,8 @@ public Mono<Void> triggerfnf(RSocketRequester requester, String payload) {
 
 if __name__ == "__main__":
     # Exchange socket_type if necessary
-    transport = TcpTransport(SPRING_SERVER_HOSTNAME, SPRING_SERVER_PORT)
-    # transport = WebsocketTransport("ws://localhost:8080/rsocket")
+    # transport = TcpTransport(SPRING_SERVER_HOSTNAME, SPRING_SERVER_PORT)
+    transport = WebsocketTransport("ws://localhost:8080/rsocket")
     socket = RMessageClient(transport, keepalive=10000, maxlive=500000)
 
     print("This expects Spring MessageMapping 'test.controller.mono' returning a Mono<Map<String, byte[]>>")
@@ -115,7 +115,7 @@ if __name__ == "__main__":
         count = 0
         while True:
             # count += 1
-            if count == 5:
+            if count == 10:
                 break
             time.sleep(1.0)
     except KeyboardInterrupt:

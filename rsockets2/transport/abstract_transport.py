@@ -41,7 +41,7 @@ class AbstractTransport(ABC):
         if success == True:
             try:
                 data = frame.to_bytes()
-                logging.debug("Sending Frame: Length '{}' [bytes]. Type: '{}'. StreamID: '{}'".format(
+                self._log.debug("Sending Frame: Length '{}' [bytes]. Type: '{}'. StreamID: '{}'".format(
                     len(data), frame.__class__.__name__, frame.stream_id))
                 self._send_bytes(data)
             finally:
@@ -53,6 +53,6 @@ class AbstractTransport(ABC):
     def recv_frame(self) -> Frame_ABC:
         frame_bytes = self._recv_bytes()
         frame = self._parser.parseFrame(frame_bytes)
-        logging.debug("Received Frame: Length '{}' [bytes]. Type: '{}' StreamID: '{}'.".format(
+        self._log.debug("Received Frame: Length '{}' [bytes]. Type: '{}' StreamID: '{}'.".format(
             len(frame_bytes), frame.__class__.__name__, frame.stream_id))
         return frame
