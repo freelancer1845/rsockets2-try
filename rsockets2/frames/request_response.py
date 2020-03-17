@@ -10,8 +10,8 @@ class RequestResponse(Frame_ABC):
         super().__init__()
 
         self.meta_data_present = False
-        self.meta_data = None
-        self.request_data = None
+        self.meta_data = bytes(0)
+        self.request_data = bytes(0)
 
     @classmethod
     def from_data(cls, stream_id: int, flags: int, full_data: bytes):
@@ -32,7 +32,7 @@ class RequestResponse(Frame_ABC):
     def __len__(self):
         bufferSize = 6
 
-        if self.meta_data != None:
+        if self.meta_data != None and len(self.meta_data) > 0:
             bufferSize += 3
             bufferSize += len(self.meta_data)
         if self.request_data != None:

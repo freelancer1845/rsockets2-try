@@ -7,17 +7,23 @@ from ..connection import AbstractConnection
 
 
 def request_response_pipe(stream_id: int, connection: AbstractConnection):
-    def on_next(self, value):
+    def on_next(value):
+        if isinstance(value, tuple):
+            meta_data = value[0]
+            data = value[1]
+        else:
+            meta_data = bytes(0)
+            data = value
         answer = frames.Payload()
         answer.stream_id = stream_id
         answer.follows = False
         answer.complete = True
         answer.next_present = True
-        answer.payload = value
-        answer.meta_data = bytes(0)
+        answer.payload = data
+        answer.meta_data = meta_data
         connection.queue_frame(answer)
 
-    def on_error(self, error):
+    def on_error(error):
         error_frame = frames.ErrorFrame()
         error_frame.stream_id = stream_id
         error_frame.error_code = frames.ErrorCodes.APPLICATION_ERROR
@@ -25,9 +31,9 @@ def request_response_pipe(stream_id: int, connection: AbstractConnection):
             error_frame.error_data = str(error).encode("ASCII")
         else:
             error_frame.error_data = error
-        connection.send_frame(error_frame)
+        connection.queue_frame(error_frame)
 
-    def on_completed(self):
+    def on_completed():
         pass
 
     return rx.pipe(

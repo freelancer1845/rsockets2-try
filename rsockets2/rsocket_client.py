@@ -8,6 +8,7 @@ import rx
 import rx.operators as op
 import rx.scheduler
 import logging
+import typing
 
 
 class RSocketClient(object):
@@ -25,9 +26,10 @@ class RSocketClient(object):
             self._connection = ResumableClientConnection(transport, config)
         else:
             self._connection = ClientConnection(transport, config)
-        self.on_request_response: typing.Callable[[
+
+        self._on_request_response: typing.Callable[[
             frames.RequestResponse], rx.Observable] = None
-        self.on_request_stream: typing.Callable[[
+        self._on_request_stream: typing.Callable[[
             frames.RequestStream], rx.Observable] = None
         self.on_fire_and_forget: typing.Callable[[
             frames.RequestFNF], None] = None
@@ -109,10 +111,12 @@ class RSocketClient(object):
                 "Received Request Response but no handler registered!")
             self._connection.queue_frame(frames.ErrorFrame.from_info(
                 "No Request Response Handler!", stream_id=request.stream_id))
-        self.on_request_response(request).pipe(
+        rx.of(request).pipe(
             op.observe_on(self._scheduler),
+            op.flat_map(lambda x: self._on_request_response(x)),
             request_response_pipe(
-                request.stream_id, self._connection)).subscribe(scheduler=self._scheduler)
+                request.stream_id, self._connection)
+        ).subscribe(on_error=lambda x: self._log.debug("Error while executing request response handler", exc_info=True), scheduler=self._scheduler)
 
     def _request_stream_listener(self, request):
         if self.on_request_response == None:
@@ -120,16 +124,21 @@ class RSocketClient(object):
                 "Received Request Stream but no handler registered!")
             self._connection.queue_frame(frames.ErrorFrame.from_info(
                 "No Request Stream Handler!", stream_id=request.stream_id))
-        self.on_request_response(request).pipe(
+        rx.of(request).pipe(
             op.observe_on(self._scheduler),
+            op.flat_map(lambda x: self.on_request_response(x)),
             request_stream_pipe(
-                request.stream_id, self._connection)).subscribe(scheduler=self._scheduler)
+                request.stream_id, self._connection)
+        ).subscribe(on_error=lambda x: self._log.debug("Error while executing request response handler", exc_info=True), scheduler=self._scheduler)
 
     def _fire_and_forget_listener(self, request):
         if self.on_request_response == None:
             self._log.debug(
                 "Received Fire and Forget but no handler registered!")
-        self.on_fire_and_forget(request)
+        rx.of(request).pipe(
+            op.observe_on(self._scheduler),
+            op.do_action(on_next=self.on_fire_and_forget)
+        ).subscribe(on_error=lambda x: self._log.debug("Error while executing fire and forget handler", exc_info=True), scheduler=self._scheduler)
 
     def _errors_and_teardown(self, stream_id):
 
@@ -153,3 +162,27 @@ class RSocketClient(object):
             op.finally_action(
                 lambda: final_action()),
         )
+
+    @property
+    def on_request_response(self):
+        return self._on_request_response
+
+    @on_request_response.setter
+    def on_request_response(self, callback: typing.Callable[[
+            frames.RequestResponse], rx.Observable]):
+        """
+            You can either return an Observable<bytes> which will be send as payload without metadata or Observable<(bytes, bytes)> which will be send as payload(metadata, data)
+        """
+        self._on_request_response = callback
+
+    @property
+    def on_request_stream(self):
+        return self._on_request_response
+
+    @on_request_stream.setter
+    def on_request_stream(self, callback: typing.Callable[[
+            frames.RequestStream], rx.Observable]):
+        """
+            You can either return an Observable<bytes> which will be send as payload without metadata or Observable<(bytes, bytes)> which will be send as payload(metadata, data)
+        """
+        self._on_request_stream = callback

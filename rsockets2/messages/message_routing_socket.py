@@ -1,12 +1,13 @@
 from rsockets2.transport import AbstractTransport
-from .rsocket_client import RSocketClient
-from .common import RSocketConfig
+from ..rsocket_client import RSocketClient
+from ..common import RSocketConfig
 import rsockets2.frames as frames
 import logging
 import json
 import typing
 import rx
 import rx.operators as op
+from .serialization import json_decoder, json_encoder
 
 
 class RMessageClient(object):
@@ -33,8 +34,8 @@ class RMessageClient(object):
         self.encoder = lambda x: x
 
         if data_mime_type == b"application/json":
-            self.decoder = lambda x: json.loads(x, encoding='UTF-8')
-            self.encoder = lambda x: json.dumps(x).encode('UTF-8')
+            self.decoder = json_decoder
+            self.encoder = json_encoder
 
         self._stream_handler = {}
         self._request_handler = {}
@@ -99,8 +100,11 @@ class RMessageClient(object):
     def _on_request_response(self, frame: frames.RequestResponse):
         route_name = self._get_route_name(frame.meta_data)
         if route_name in self._request_handler:
-            return self._request_handler[route_name](
-                self.decoder(frame.request_data)).pipe(op.map(self.encoder))
+            try:
+                return self._request_handler[route_name](
+                    self.decoder(frame.request_data)).pipe(op.map(self.encoder))
+            except Exception as error:
+                raise error
         else:
             return rx.throw(Exception("Unknown Destination '{}'".format(route_name)))
 

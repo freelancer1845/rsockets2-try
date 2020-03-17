@@ -58,7 +58,7 @@ class Payload(Frame_ABC):
         dataWritten = 4
         type_and_flags = FrameType.PAYLOAD << 10
 
-        if self.meta_data != None:
+        if self.meta_data != None and len(self.meta_data) > 0:
             type_and_flags |= (1 << 8)
         if self.next_present:
             type_and_flags |= (1 << 5)
