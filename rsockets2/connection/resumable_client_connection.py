@@ -170,14 +170,15 @@ class ResumableClientConnection(AbstractConnection):
     def _send_and_control_loop(self):
         while self._state != ConnectionState.DISCONNECTED:
             if self._state == ConnectionState.RESUMING:
-                print("Waiting for recv thread to reach resume")
                 try:
                     self._recv_thread_in_resume_event.wait(timeout=5)
                 except TimeoutError as error:
-                    print("Waiting for recv thread timed out!")
+                    self._log.debug("Waiting for RecvThread timed out!")
+                    self._log.error(
+                        "Resuming connection failed... internal error")
                     self._change_state(ConnectionState.DISCONNECTED)
                 self._try_resume()
-                
+
             elif self._state == ConnectionState.CONNECTED:
                 try:
                     frame = self._send_queue.get().data
