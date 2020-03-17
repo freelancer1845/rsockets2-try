@@ -119,20 +119,20 @@ class RSocketClient(object):
         ).subscribe(on_error=lambda x: self._log.debug("Error while executing request response handler", exc_info=True), scheduler=self._scheduler)
 
     def _request_stream_listener(self, request):
-        if self.on_request_response == None:
+        if self._on_request_stream == None:
             self._log.debug(
                 "Received Request Stream but no handler registered!")
             self._connection.queue_frame(frames.ErrorFrame.from_info(
                 "No Request Stream Handler!", stream_id=request.stream_id))
         rx.of(request).pipe(
             op.observe_on(self._scheduler),
-            op.flat_map(lambda x: self.on_request_response(x)),
+            op.flat_map(lambda x: self._on_request_stream(x)),
             request_stream_pipe(
                 request.stream_id, self._connection)
         ).subscribe(on_error=lambda x: self._log.debug("Error while executing request response handler", exc_info=True), scheduler=self._scheduler)
 
     def _fire_and_forget_listener(self, request):
-        if self.on_request_response == None:
+        if self.on_fire_and_forget == None:
             self._log.debug(
                 "Received Fire and Forget but no handler registered!")
         rx.of(request).pipe(
