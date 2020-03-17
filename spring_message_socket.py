@@ -48,7 +48,7 @@ if __name__ == "__main__":
     # Exchange socket_type if necessary
     # transport = TcpTransport(SPRING_SERVER_HOSTNAME, SPRING_SERVER_PORT)
     transport = WebsocketTransport("ws://localhost:8080/rsocket")
-    socket = RMessageClient(transport, keepalive=10000, maxlive=500000)
+    socket = RMessageClient(transport, keepalive=10000, maxlive=500000, resume_support=True)
 
     print("This expects Spring MessageMapping 'test.controller.mono' returning a Mono<Map<String, byte[]>>")
     print("This expects Spring MessageMapping 'test.controller.flux' returning a Flux<Map<String, byte[]>>")

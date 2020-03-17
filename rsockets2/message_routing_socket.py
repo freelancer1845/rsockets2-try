@@ -15,7 +15,8 @@ class RMessageClient(object):
                  transport: AbstractTransport,
                  keepalive=30000,
                  maxlive=10000,
-                 data_mime_type=b"application/json"):
+                 data_mime_type=b"application/json",
+                 resume_support=False):
         super().__init__()
 
         self._log = logging.getLogger("rsockets2.message")
@@ -24,7 +25,7 @@ class RMessageClient(object):
         config.keepalive_time = keepalive
         config.max_liftime = maxlive
         config.data_mime_type = data_mime_type
-        config.resume_support = True
+        config.resume_support = resume_support
 
         self.rsocket = RSocketClient(config, transport)
 
