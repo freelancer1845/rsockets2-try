@@ -14,26 +14,19 @@ class RMessageClient(object):
 
     def __init__(self,
                  transport: AbstractTransport,
-                 keepalive=30000,
-                 maxlive=10000,
-                 data_mime_type=b"application/json",
-                 resume_support=False):
+                 config: RSocketConfig,
+                 default_scheduler: rx.scheduler.scheduler.Scheduler = None
+                 ):
         super().__init__()
 
-        self._log = logging.getLogger("rsockets2.message")
+        self._log = logging.getLogger("rsockets2.RMessageClient")
 
-        config = RSocketConfig()
-        config.keepalive_time = keepalive
-        config.max_liftime = maxlive
-        config.data_mime_type = data_mime_type
-        config.resume_support = resume_support
-
-        self.rsocket = RSocketClient(config, transport)
+        self.rsocket = RSocketClient(config, transport, default_scheduler)
 
         self.decoder = lambda x: x
         self.encoder = lambda x: x
 
-        if data_mime_type == b"application/json":
+        if config.data_mime_type == b"application/json":
             self.decoder = json_decoder
             self.encoder = json_encoder
 

@@ -49,7 +49,7 @@ class ResumableClientConnection(AbstractConnection):
         super().__init__()
         if config.resume_support == False:
             raise ValueError(
-                "Tried to create a ResumableClientConnection without noting resume_support in config!")
+                "Tried to create a ResumableClientConnection without setting resume_support in config!")
         self._log = logging.getLogger(
             "rsockets2.connection.ResumableClientConnection")
 
@@ -131,9 +131,12 @@ class ResumableClientConnection(AbstractConnection):
             time.sleep(1.0)
             try:
                 self._transport.connect()
-
+                if (len(self._send_cache) == 0):
+                    sendPosition = 0
+                else:
+                    sendPosition = self._send_cache[0].pos
                 resumeFrame = ResumeFrame.from_config(
-                    self._config, self._token, self.last_received_position, self._send_cache[0].pos)
+                    self._config, self._token, self.last_received_position, sendPosition)
                 self._transport.send_frame(resumeFrame)
                 answer = self._transport.recv_frame()
                 if isinstance(answer, ResumeOkFrame):
