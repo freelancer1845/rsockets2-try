@@ -51,13 +51,21 @@ class RMessageClient(object):
     def register_fire_and_forget_handler(self, route: str, handler: typing.Callable[[typing.Union[bytes, typing.Dict]], rx.Observable]):
         self._fire_and_forget_handler[route] = handler
 
-    def request_response(self, route: str, data: typing.Union[bytes, typing.Dict] = None) -> rx.Observable:
+    def request_response(self, route: str, data: typing.Union[bytes, typing.Dict] = None, try_decode: bool = True) -> rx.Observable:
         data = self._check_data_none(data)
-        return self.rsocket.request_response(meta_data=self._encode_route_name(route), data=self.encoder(data)).pipe(op.map(lambda response: self.decoder(response)))
+        if try_decode == True:
+            decoder = self.decoder
+        else:
+            def decoder(x): return x
+        return self.rsocket.request_response(meta_data=self._encode_route_name(route), data=self.encoder(data)).pipe(op.map(lambda response: decoder(response)))
 
-    def request_stream(self, route: str, data: typing.Union[bytes, typing.Dict] = None) -> rx.Observable:
+    def request_stream(self, route: str, data: typing.Union[bytes, typing.Dict] = None, try_decode: bool = True) -> rx.Observable:
         data = self._check_data_none(data)
-        return self.rsocket.request_stream(meta_data=self._encode_route_name(route), data=self.encoder(data)).pipe(op.map(lambda item: self.decoder(item)))
+        if try_decode == True:
+            decoder = self.decoder
+        else:
+            def decoder(x): return x
+        return self.rsocket.request_stream(meta_data=self._encode_route_name(route), data=self.encoder(data)).pipe(op.map(lambda item: decoder(item)))
 
     def fire_and_forget(self, route: str, data: typing.Union[bytes, typing.Dict] = None) -> rx.Observable:
         data = self._check_data_none(data)
