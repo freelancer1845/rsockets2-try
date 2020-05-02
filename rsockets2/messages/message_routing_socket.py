@@ -53,11 +53,11 @@ class RMessageClient(object):
 
     def request_response(self, route: str, data: typing.Union[bytes, typing.Dict] = None) -> rx.Observable:
         data = self._check_data_none(data)
-        return self.rsocket.request_response(meta_data=self._encode_route_name(route), data=self.encoder(data))
+        return self.rsocket.request_response(meta_data=self._encode_route_name(route), data=self.encoder(data)).pipe(op.map(lambda response: self.decoder(response)))
 
     def request_stream(self, route: str, data: typing.Union[bytes, typing.Dict] = None) -> rx.Observable:
         data = self._check_data_none(data)
-        return self.rsocket.request_stream(meta_data=self._encode_route_name(route), data=self.encoder(data))
+        return self.rsocket.request_stream(meta_data=self._encode_route_name(route), data=self.encoder(data)).pipe(op.map(lambda item: self.decoder(item)))
 
     def fire_and_forget(self, route: str, data: typing.Union[bytes, typing.Dict] = None) -> rx.Observable:
         data = self._check_data_none(data)
