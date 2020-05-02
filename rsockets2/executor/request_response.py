@@ -17,9 +17,26 @@ def _request_response_executor(
 
     if scheduler is None:
         scheduler = rx.scheduler.ThreadPoolScheduler(max_workers=20)
+
+    def complete_filter_exclusive(payload: Payload) -> bool:
+        if payload.complete and not payload.next_present:
+            return False
+        else:
+            return True
+
+    def complete_filter_inclusive(payload: Payload) -> bool:
+        if payload.complete and payload.next_present:
+            return False
+        else:
+            return True
+
     response_obs = connection.recv_observable_filter_type(Payload).pipe(
         op.observe_on(scheduler),
         op.filter(lambda payload: payload.stream_id == frame.stream_id),
+        op.take_while(lambda payload: complete_filter_exclusive(
+            payload), inclusive=False),
+        op.take_while(lambda payload: complete_filter_exclusive(
+            payload), inclusive=True),
         op.take_until(connection.destroy_observable())
     )
 
