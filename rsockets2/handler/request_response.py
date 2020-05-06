@@ -33,8 +33,6 @@ def request_response_pipe(stream_id: int, connection: AbstractConnection):
             error_frame.error_data = error
         connection.queue_frame(error_frame)
 
-    def on_completed():
-        pass
 
     return rx.pipe(
         op.take_until(
@@ -46,6 +44,5 @@ def request_response_pipe(stream_id: int, connection: AbstractConnection):
         op.take_until(
             connection.destroy_observable()
         ),
-        op.do_action(on_next=on_next, on_error=on_error,
-                     on_completed=on_completed)
+        op.do_action(on_next=on_next, on_error=on_error)
     )
