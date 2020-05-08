@@ -45,7 +45,7 @@ class RequestFNF(Frame_ABC):
         if self.stream_id == 0:
             raise ValueError("Stream ID must be set!")
         
-        data = len(self)
+        data = bytearray(len(self))
 
         struct.pack_into(">I", data, 0, self.stream_id)
         dataWritten = 4
