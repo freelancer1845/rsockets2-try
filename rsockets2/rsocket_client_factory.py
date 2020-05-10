@@ -20,7 +20,7 @@ class RSocketClientFactory(object):
         super().__init__()
         self._config = RSocketConfig()
         self._transport = None
-        self._scheduler = rx.scheduler.ThreadPoolScheduler(100)
+        self._scheduler = None
         self._auto_reconnect = False
         self._message_client = False
         self.log = logging.getLogger('rsockets2.RSocketClientFactory')
@@ -47,8 +47,11 @@ class RSocketClientFactory(object):
         return self
 
     def build(self) -> rx.Observable[RSocketClient]:
-        if self._transport == None:
+        if self._transport is None:
             raise ValueError("You must provide a viable transport!")
+
+        if self._scheduler is None:
+            self._scheduler = rx.scheduler.ThreadPoolScheduler(20)
 
         if self._auto_reconnect == True:
 

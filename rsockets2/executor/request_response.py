@@ -16,7 +16,7 @@ def _request_response_executor(
         observer, scheduler):
 
     if scheduler is None:
-        scheduler = rx.scheduler.ThreadPoolScheduler(max_workers=20)
+        scheduler = rx.scheduler.NewThreadScheduler()
 
     def complete_filter_exclusive(payload: Payload) -> bool:
         if payload.complete and not payload.next_present:

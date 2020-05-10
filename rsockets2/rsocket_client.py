@@ -17,13 +17,13 @@ class RSocketClient(object):
                  config: RSocketConfig,
                  transport: AbstractTransport,
                  default_scheduler: rx.scheduler.scheduler.Scheduler = rx.scheduler.ThreadPoolScheduler(
-                     100)
+                     20)
                  ):
         super().__init__()
 
         self._log = logging.getLogger("rsockets2.RSocketClient")
         if config.resume_support == True:
-            self._connection = ResumableClientConnection(transport, config)
+            self._connection = ResumableClientConnection(transport, config, default_scheduler)
         else:
             self._connection = ClientConnection(transport, config)
 

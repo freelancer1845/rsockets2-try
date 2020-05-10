@@ -45,7 +45,7 @@ class ResumableClientConnection(AbstractConnection):
 
     token_length = 8 * 16
 
-    def __init__(self, transport: AbstractTransport, config: RSocketConfig):
+    def __init__(self, transport: AbstractTransport, config: RSocketConfig, scheduler = rx.scheduler.ThreadPoolScheduler(20)):
         super().__init__()
         if config.resume_support == False:
             raise ValueError(
@@ -53,7 +53,7 @@ class ResumableClientConnection(AbstractConnection):
         self._log = logging.getLogger(
             "rsockets2.connection.ResumableClientConnection")
 
-        self._scheduler = rx.scheduler.ThreadPoolScheduler(20)
+        self._scheduler = scheduler
         self._config = config
         self._transport = transport
         self._state = ConnectionState.RESUMING
