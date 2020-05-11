@@ -59,5 +59,5 @@ def request_response_pipe(stream_id: int, connection: AbstractConnection):
         op.take_until(
             connection.destroy_observable()
         ),
-        op.do_action(on_next=on_next, on_error=on_error, on_completed=on_completed)
+        op.do_action(on_next=on_next, on_error=on_error, on_completed=lambda: on_completed())
     )
