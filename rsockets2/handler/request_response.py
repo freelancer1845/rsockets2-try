@@ -7,6 +7,7 @@ from ..connection import AbstractConnection
 
 
 def request_response_pipe(stream_id: int, connection: AbstractConnection):
+    is_complete = False
     def on_next(value):
         if isinstance(value, tuple):
             meta_data = value[0]
@@ -21,6 +22,9 @@ def request_response_pipe(stream_id: int, connection: AbstractConnection):
         answer.next_present = True
         answer.payload = data
         answer.meta_data = meta_data
+        if is_complete == True:
+            raise RuntimeError("Request Response interaction completed before handling on_next value. This is a race condition!")
+        is_complete = True
         connection.queue_frame(answer)
 
     def on_error(error):
@@ -33,6 +37,15 @@ def request_response_pipe(stream_id: int, connection: AbstractConnection):
             error_frame.error_data = error
         connection.queue_frame(error_frame)
 
+    def on_complete():
+        if on_complete == False:
+            answer = frames.Payload()
+            answer.stream_id = stream_id
+            answer.follows = False
+            answer.complete = True
+            answer.next_present = False
+            connection.queue_frame(answer)
+
 
     return rx.pipe(
         op.take_until(
@@ -44,5 +57,5 @@ def request_response_pipe(stream_id: int, connection: AbstractConnection):
         op.take_until(
             connection.destroy_observable()
         ),
-        op.do_action(on_next=on_next, on_error=on_error)
+        op.do_action(on_next=on_next, on_error=on_error, on_complete=on_complete)
     )
