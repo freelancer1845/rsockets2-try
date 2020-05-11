@@ -42,14 +42,14 @@ class RMessageClient(object):
     def close(self):
         self.rsocket.close()
 
-    def register_stream_handler(self, route: str, stream_creater: typing.Callable[[typing.Union[bytes, typing.Dict]], rx.Observable]):
-        self._stream_handler[route] = stream_creater
+    def register_stream_handler(self, route: str, stream_creater: typing.Callable[[typing.Union[bytes, typing.Dict]], rx.Observable], try_decode_request: bool = True):
+        self._stream_handler[route] = [stream_creater, try_decode_request]
 
-    def register_request_handler(self, route: str, stream_creater: typing.Callable[[typing.Union[bytes, typing.Dict]], rx.Observable]):
-        self._request_handler[route] = stream_creater
+    def register_request_handler(self, route: str, stream_creater: typing.Callable[[typing.Union[bytes, typing.Dict]], rx.Observable], try_decode_request: bool = True):
+        self._request_handler[route] = [stream_creater, try_decode_request]
 
-    def register_fire_and_forget_handler(self, route: str, handler: typing.Callable[[typing.Union[bytes, typing.Dict]], rx.Observable]):
-        self._fire_and_forget_handler[route] = handler
+    def register_fire_and_forget_handler(self, route: str, handler: typing.Callable[[typing.Union[bytes, typing.Dict]], rx.Observable], try_decode_request: bool = True):
+        self._fire_and_forget_handler[route] = [handler, try_decode_request]
 
     def request_response(self, route: str, data: typing.Union[bytes, typing.Dict] = None, try_decode: bool = True) -> rx.Observable:
         data = self._check_data_none(data)
@@ -80,9 +80,12 @@ class RMessageClient(object):
         route_name = self._get_route_name(frame.meta_data)
         if route_name in self._fire_and_forget_handler:
             try:
-                decoded = self.decoder(frame.request_data)
-                self._fire_and_forget_handler[route_name](
-                    self.decoder(frame.request_data))
+                handler = self._fire_and_forget_handler[route_name]
+                if handler[1] == True:
+                    return handler[0](self.decoder(frame.request_data))
+                else:
+                    return handler[0](frame.request_data)
+              
             except Exception as err:
                 self._log.warn(
                     "Failed to decode Fire And Forget frame: {}".format(err), exc_info=True)
@@ -94,18 +97,22 @@ class RMessageClient(object):
     def _on_request_stream(self, frame: frames.RequestStream):
         route_name = self._get_route_name(frame.meta_data)
         if route_name in self._stream_handler:
-            return self._stream_handler[route_name](self.decoder(frame.request_data)).pipe(op.map(self.encoder))
+            handler = self._stream_handler[route_name]
+            if handler[1] == True:
+                return handler[0](self.decoder(frame.request_data)).pipe(op.map(self.encoder))
+            else:
+                return handler[0](frame.request_data).pipe(op.map(self.encoder))
         else:
             return rx.throw(Exception("Unknown Destination '{}'".format(route_name)))
 
     def _on_request_response(self, frame: frames.RequestResponse):
         route_name = self._get_route_name(frame.meta_data)
         if route_name in self._request_handler:
-            try:
-                return self._request_handler[route_name](
-                    self.decoder(frame.request_data)).pipe(op.map(self.encoder))
-            except Exception as error:
-                raise error
+            handler = self._request_handler[route_name]
+            if handler[1] == True:
+                return handler[0](self.decoder(frame.request_data)).pipe(op.map(self.encoder))
+            else:
+                return handler[0](frame.request_data).pipe(op.map(self.encoder))
         else:
             return rx.throw(Exception("Unknown Destination '{}'".format(route_name)))
 
