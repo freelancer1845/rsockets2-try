@@ -9,6 +9,7 @@ from ..connection import AbstractConnection
 def request_response_pipe(stream_id: int, connection: AbstractConnection):
     is_complete = False
     def on_next(value):
+        nonlocal is_complete
         if isinstance(value, tuple):
             meta_data = value[0]
             data = value[1]
@@ -37,8 +38,9 @@ def request_response_pipe(stream_id: int, connection: AbstractConnection):
             error_frame.error_data = error
         connection.queue_frame(error_frame)
 
-    def on_complete():
-        if on_complete == False:
+    def on_completed():
+        nonlocal is_complete
+        if is_complete == False:
             answer = frames.Payload()
             answer.stream_id = stream_id
             answer.follows = False
@@ -57,5 +59,5 @@ def request_response_pipe(stream_id: int, connection: AbstractConnection):
         op.take_until(
             connection.destroy_observable()
         ),
-        op.do_action(on_next=on_next, on_error=on_error, on_complete=on_complete)
+        op.do_action(on_next=on_next, on_error=on_error, on_completed=on_completed)
     )
