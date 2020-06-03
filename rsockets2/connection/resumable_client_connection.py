@@ -291,7 +291,6 @@ class ResumableClientConnection(AbstractConnection):
                 self._log.error(
                     "Received Error Frame. Error Code: {}. Error Data: {}".format(
                         error.error_code, error.error_data))
-
-        self.recv_observable().pipe(
+        self.recv_observable_filter_type(ErrorFrame).pipe(
             op.take_until(self._destroy_publisher)
         ).subscribe(on_next=on_next)
