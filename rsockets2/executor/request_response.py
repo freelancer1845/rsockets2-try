@@ -15,9 +15,6 @@ def _request_response_executor(
         is_single_element,
         observer, scheduler):
 
-    if scheduler is None:
-        scheduler = rx.scheduler.NewThreadScheduler()
-
     def complete_filter_exclusive(payload: Payload) -> bool:
         if payload.complete and not payload.next_present:
             return False
@@ -31,7 +28,7 @@ def _request_response_executor(
             return True
 
     response_obs = connection.recv_observable_filter_type(Payload).pipe(
-        op.observe_on(scheduler),
+        # op.observe_on(scheduler),
         op.filter(lambda payload: payload.stream_id == frame.stream_id),
         op.take_while(lambda payload: complete_filter_exclusive(
             payload), inclusive=False),

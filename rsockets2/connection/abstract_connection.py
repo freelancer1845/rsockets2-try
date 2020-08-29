@@ -61,6 +61,8 @@ class AbstractConnection(ABC):
     def get_new_stream_id(self) -> int:
         self._stream_id_lock.acquire(blocking=True)
         while True:
+            if self._last_stream_id >= 2_147_483_647:
+                self._last_stream_id = 0
             if self._last_stream_id == 0:
                 stream_id = 1
                 self._last_stream_id = 1

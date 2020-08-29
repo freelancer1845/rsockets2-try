@@ -23,7 +23,8 @@ class RSocketClient(object):
 
         self._log = logging.getLogger("rsockets2.RSocketClient")
         if config.resume_support == True:
-            self._connection = ResumableClientConnection(transport, config, default_scheduler)
+            self._connection = ResumableClientConnection(
+                transport, config, default_scheduler)
         else:
             self._connection = ClientConnection(transport, config)
 
@@ -45,42 +46,45 @@ class RSocketClient(object):
         self._connection.close()
 
     def request_response(self, meta_data, data) -> rx.Observable:
+        def handle():
+            request = frames.RequestResponse()
+            request.stream_id = self._connection.get_new_stream_id()
+            if isinstance(meta_data, str):
+                request.meta_data = meta_data.encode('UTF-8')
+            else:
+                request.meta_data = meta_data
+            if isinstance(data, str):
+                request.request_data = data.encode('UTF-8')
+            else:
+                request.request_data = data
 
-        request = frames.RequestResponse()
-        request.stream_id = self._connection.get_new_stream_id()
-        if isinstance(meta_data, str):
-            request.meta_data = meta_data.encode('UTF-8')
-        else:
-            request.meta_data = meta_data
-        if isinstance(data, str):
-            request.request_data = data.encode('UTF-8')
-        else:
-            request.request_data = data
-
-        return executors.request_response_executor(self._connection, request).pipe(
-            op.observe_on(self._scheduler),
-            self._errors_and_teardown(request.stream_id),
-            op.subscribe_on(self._scheduler)
-        )
+            return executors.request_response_executor(self._connection, request).pipe(
+                op.subscribe_on(self._scheduler),
+                op.observe_on(self._scheduler),
+                self._errors_and_teardown(request.stream_id)
+            )
+        return rx.defer(lambda x: handle())
 
     def request_stream(self, meta_data, data) -> rx.Observable:
-        request = frames.RequestStream()
-        request.stream_id = self._connection.get_new_stream_id()
-        request.initial_request = 100000
-        if isinstance(meta_data, str):
-            request.meta_data = meta_data.encode('UTF-8')
-        else:
-            request.meta_data = meta_data
-        if isinstance(data, str):
-            request.request_data = data.encode('UTF-8')
-        else:
-            request.request_data = data
+        def handle():
+            request = frames.RequestStream()
+            request.stream_id = self._connection.get_new_stream_id()
+            request.initial_request = 100000
+            if isinstance(meta_data, str):
+                request.meta_data = meta_data.encode('UTF-8')
+            else:
+                request.meta_data = meta_data
+            if isinstance(data, str):
+                request.request_data = data.encode('UTF-8')
+            else:
+                request.request_data = data
 
-        return executors.request_stream_executor(self._connection, request).pipe(
-            op.observe_on(self._scheduler),
-            self._errors_and_teardown(request.stream_id),
-            op.subscribe_on(self._scheduler)
-        )
+            return executors.request_stream_executor(self._connection, request).pipe(
+                op.subscribe_on(self._scheduler),
+                op.observe_on(self._scheduler),
+                self._errors_and_teardown(request.stream_id)
+            )
+        return rx.defer(lambda x: handle())
 
     def fire_and_forget(self, meta_data, data) -> rx.Observable:
         def action():
@@ -89,8 +93,8 @@ class RSocketClient(object):
             frame.request_data = data
             frame.stream_id = self._connection.get_new_stream_id()
             self._connection.queue_frame(frame)
-        return rx.from_callable(lambda: action(), scheduler=self._scheduler).pipe(op.ignore_elements())
-
+            return rx.from_callable(lambda: action(), scheduler=self._scheduler).pipe(self._errors_and_teardown(frame.stream_id), op.ignore_elements())
+        return rx.defer(lambda x: action())
     def _setup_request_handler(self):
         def on_next(frame: frames.Frame_ABC):
             if isinstance(frame, frames.RequestFNF):

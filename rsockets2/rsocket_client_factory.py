@@ -51,7 +51,7 @@ class RSocketClientFactory(object):
             raise ValueError("You must provide a viable transport!")
 
         if self._scheduler is None:
-            self._scheduler = rx.scheduler.ThreadPoolScheduler(20)
+            self._scheduler = rx.scheduler.ThreadPoolScheduler(5)
             self._scheduler.executor._thread_name_prefix = "RSockets-Worker"
 
         if self._auto_reconnect == True:
