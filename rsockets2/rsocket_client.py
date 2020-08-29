@@ -95,6 +95,7 @@ class RSocketClient(object):
             self._connection.queue_frame(frame)
             return rx.from_callable(lambda: action(), scheduler=self._scheduler).pipe(self._errors_and_teardown(frame.stream_id), op.ignore_elements())
         return rx.defer(lambda x: action())
+
     def _setup_request_handler(self):
         def on_next(frame: frames.Frame_ABC):
             if isinstance(frame, frames.RequestFNF):
@@ -117,7 +118,8 @@ class RSocketClient(object):
                 "No Request Response Handler!", stream_id=request.stream_id))
         rx.of(request).pipe(
             op.observe_on(self._scheduler),
-            op.flat_map(lambda x: self._on_request_response(x)),
+            op.flat_map(lambda x: self._on_request_response(
+                x).pipe(op.observe_on(self._scheduler))),
             request_response_pipe(
                 request.stream_id, self._connection)
         ).subscribe(on_error=lambda x: self._log.debug("Error while executing request response handler", exc_info=True), scheduler=self._scheduler)
@@ -130,7 +132,8 @@ class RSocketClient(object):
                 "No Request Stream Handler!", stream_id=request.stream_id))
         rx.of(request).pipe(
             op.observe_on(self._scheduler),
-            op.flat_map(lambda x: self._on_request_stream(x)),
+            op.flat_map(lambda x: self._on_request_stream(
+                x).pipe(op.observe_on(self._scheduler))),
             request_stream_pipe(
                 request.stream_id, self._connection)
         ).subscribe(on_error=lambda x: self._log.debug("Error while executing request response handler", exc_info=True), scheduler=self._scheduler)
