@@ -85,7 +85,7 @@ class RMessageClient(object):
                     return handler[0](self.decoder(frame.request_data))
                 else:
                     return handler[0](frame.request_data)
-              
+
             except Exception as err:
                 self._log.warn(
                     "Failed to decode Fire And Forget frame: {}".format(err), exc_info=True)
@@ -99,9 +99,9 @@ class RMessageClient(object):
         if route_name in self._stream_handler:
             handler = self._stream_handler[route_name]
             if handler[1] == True:
-                return handler[0](self.decoder(frame.request_data)).pipe(op.map(self.encoder))
+                return handler[0](self.decoder(frame.request_data)).pipe(op.map(lambda x: self.encoder(x)))
             else:
-                return handler[0](frame.request_data).pipe(op.map(self.encoder))
+                return handler[0](frame.request_data).pipe(op.map(lambda x: self.encoder(x)))
         else:
             return rx.throw(Exception("Unknown Destination '{}'".format(route_name)))
 

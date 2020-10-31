@@ -1,5 +1,7 @@
 import sys
 import time
+
+from rx import interval
 from rsockets2 import RMessageClient, TcpTransport, WebsocketTransport, RSocketClientFactory, RSocketConfig
 import logging
 import rx
@@ -7,7 +9,7 @@ import rx.operators
 logging.basicConfig(level=logging.DEBUG)
 
 SPRING_SERVER_HOSTNAME = 'localhost'
-SPRING_SERVER_PORT = 24512
+SPRING_SERVER_PORT = 25353
 
 
 """
@@ -51,9 +53,12 @@ def client_handler(socket: RMessageClient):
     print("This expects Spring MessageMapping 'test.controller.triggerfnf' returning a Mono<Void> and sending a FNF")
 
     try:
-        socket.register_fire_and_forget_handler(
-            'test.controller.triggerfnf', lambda x: print("Trigger Fnf Called!"))
+        # socket.register_fire_and_forget_handler(
+        #     'test.controller.triggerfnf', lambda x: print("Trigger Fnf Called!"))
+
+        socket.register_stream_handler('/test/stream', lambda x: interval(x))
         time.sleep(1.0)
+        return
 
         total_size = 0
         last_size = 0
@@ -125,12 +130,12 @@ def client_handler(socket: RMessageClient):
 
 if __name__ == "__main__":
     # Exchange socket_type if necessary
-    # transport = TcpTransport(SPRING_SERVER_HOSTNAME, SPRING_SERVER_PORT)
-    transport = WebsocketTransport("ws://localhost:8080/rsocket")
+    transport = TcpTransport(SPRING_SERVER_HOSTNAME, SPRING_SERVER_PORT)
+    # transport = WebsocketTransport("ws://localhost:8080/rsocket")
     config = RSocketConfig()
     config.keepalive_time = 10000
     config.max_liftime = 500000
-    config.resume_support = True
+    config.resume_support = False
 
     factory = RSocketClientFactory().with_auto_reconnect(
     ).with_transport(transport).with_config(config)

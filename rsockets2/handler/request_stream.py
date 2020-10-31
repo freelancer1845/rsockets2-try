@@ -6,6 +6,10 @@ import rsockets2.frames as frames
 
 from ..connection import AbstractConnection
 
+import logging
+
+log = logging.getLogger('rsockets2.handle.request_stream')
+
 
 def request_stream_pipe(stream_id: int, connection: AbstractConnection):
     def on_next(value):
@@ -25,6 +29,7 @@ def request_stream_pipe(stream_id: int, connection: AbstractConnection):
         connection.queue_frame(answer)
 
     def on_error(error):
+        log.debug(error, exc_info=True)
         error_frame = frames.ErrorFrame()
         error_frame.stream_id = stream_id
         error_frame.error_code = frames.ErrorCodes.APPLICATION_ERROR
@@ -34,7 +39,7 @@ def request_stream_pipe(stream_id: int, connection: AbstractConnection):
             error_frame.error_data = error
         connection.queue_frame(error_frame)
 
-    def on_completed(self):
+    def on_completed():
         answer = frames.Payload()
         answer.stream_id = stream_id
         answer.follows = False

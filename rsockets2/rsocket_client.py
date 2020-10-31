@@ -132,8 +132,8 @@ class RSocketClient(object):
                 "No Request Stream Handler!", stream_id=request.stream_id))
         rx.of(request).pipe(
             op.observe_on(self._scheduler),
-            op.flat_map(lambda x: self._on_request_stream(
-                x).pipe(op.observe_on(self._scheduler))),
+            op.flat_map(lambda x: self._on_request_stream(x)),
+            op.observe_on(self._scheduler),
             request_stream_pipe(
                 request.stream_id, self._connection)
         ).subscribe(on_error=lambda x: self._log.debug("Error while executing request stream handler", exc_info=True), scheduler=self._scheduler)
