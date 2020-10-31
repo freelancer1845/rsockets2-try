@@ -136,7 +136,7 @@ class RSocketClient(object):
                 x).pipe(op.observe_on(self._scheduler))),
             request_stream_pipe(
                 request.stream_id, self._connection)
-        ).subscribe(on_error=lambda x: self._log.debug("Error while executing request response handler", exc_info=True), scheduler=self._scheduler)
+        ).subscribe(on_error=lambda x: self._log.debug("Error while executing request stream handler", exc_info=True), scheduler=self._scheduler)
 
     def _fire_and_forget_listener(self, request):
         if self.on_fire_and_forget == None:
