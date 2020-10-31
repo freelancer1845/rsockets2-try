@@ -116,8 +116,7 @@ class RSocketClient(object):
                 "Received Request Response but no handler registered!")
             self._connection.queue_frame(frames.ErrorFrame.from_info(
                 "No Request Response Handler!", stream_id=request.stream_id))
-        rx.of(request).pipe(
-            op.observe_on(self._scheduler),
+        rx.from_iterable([request], self._scheduler).pipe(
             op.flat_map(lambda x: self._on_request_response(
                 x).pipe(op.observe_on(self._scheduler))),
             request_response_pipe(
@@ -130,8 +129,7 @@ class RSocketClient(object):
                 "Received Request Stream but no handler registered!")
             self._connection.queue_frame(frames.ErrorFrame.from_info(
                 "No Request Stream Handler!", stream_id=request.stream_id))
-        rx.of(request).pipe(
-            op.observe_on(self._scheduler),
+        rx.from_iterable([request], self._scheduler).pipe(
             op.flat_map(lambda x: self._on_request_stream(x)),
             op.observe_on(self._scheduler),
             request_stream_pipe(
@@ -142,8 +140,7 @@ class RSocketClient(object):
         if self.on_fire_and_forget == None:
             self._log.debug(
                 "Received Fire and Forget but no handler registered!")
-        rx.of(request).pipe(
-            op.observe_on(self._scheduler),
+        rx.from_iterable([request], self._scheduler).pipe(
             op.do_action(on_next=self.on_fire_and_forget)
         ).subscribe(on_error=lambda x: self._log.debug("Error while executing fire and forget handler", exc_info=True), scheduler=self._scheduler)
 
