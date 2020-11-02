@@ -2,10 +2,13 @@ from abc import ABC, abstractmethod
 import threading
 import rx
 import rx.operators as op
+from rx.subject.subject import Subject
 from ..frames import Frame_ABC
 
 
 class AbstractConnection(ABC):
+
+    _expected_exceptions = (ConnectionError, OSError)
 
     def __init__(self):
         super().__init__()
@@ -19,6 +22,8 @@ class AbstractConnection(ABC):
         self._used_stream_ids = []
         self._stream_id_lock = threading.Lock()
 
+        self._destroy_publisher = Subject()
+
         self.token = bytes(0)
 
     @abstractmethod
@@ -29,9 +34,8 @@ class AbstractConnection(ABC):
     def recv_observable(self):
         pass
 
-    @abstractmethod
     def destroy_observable(self):
-        pass
+        self._destroy_publisher
 
     def recv_observable_filter_type(self, frame_type):
         return self.recv_observable().pipe(

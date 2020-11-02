@@ -55,7 +55,6 @@ def client_handler(socket: RMessageClient):
     try:
         # socket.register_fire_and_forget_handler(
         #     'test.controller.triggerfnf', lambda x: print("Trigger Fnf Called!"))
-
         socket.register_stream_handler('/test/stream', lambda x: interval(x))
         time.sleep(1.0)
         return

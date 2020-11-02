@@ -35,6 +35,7 @@ class TcpTransport(AbstractTransport):
         self._log.debug("Connecting to {}:{}".format(self._host, self._port))
         try:
             self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._socket.settimeout(10.0)
             self._socket.connect((self._host, self._port))
         except OSError as error:
             # wrap os error into connection error

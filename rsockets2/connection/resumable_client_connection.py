@@ -45,7 +45,7 @@ class ResumableClientConnection(AbstractConnection):
 
     token_length = 8 * 16
 
-    def __init__(self, transport: AbstractTransport, config: RSocketConfig, scheduler = rx.scheduler.ThreadPoolScheduler(20)):
+    def __init__(self, transport: AbstractTransport, config: RSocketConfig, scheduler=rx.scheduler.ThreadPoolScheduler(20)):
         super().__init__()
         if config.resume_support == False:
             raise ValueError(
@@ -60,7 +60,6 @@ class ResumableClientConnection(AbstractConnection):
         self._resume_times = 0
         self._token = None
 
-        self._destroy_publisher = rx.subject.Subject()
         self._recv_publisher = rx.subject.Subject()
 
         self._send_queue = PriorityQueue()
@@ -88,9 +87,6 @@ class ResumableClientConnection(AbstractConnection):
             op.observe_on(self._scheduler),
             op.take_until(self.destroy_observable()),
             op.subscribe_on(self._scheduler))
-
-    def destroy_observable(self):
-        return self._destroy_publisher
 
     def open(self):
         self._create_error_logger()
@@ -194,7 +190,7 @@ class ResumableClientConnection(AbstractConnection):
                                 SendCacheEntry(pos, time.time(), frame))
 
                     self._transport.send_frame(frame)
-                except (ConnectionError, OSError) as error:
+                except self._expected_exceptions as error:
                     if self._state == ConnectionState.CONNECTED:
                         self._log.debug(
                             "Connection Error - Trying to resume: {}".format(error))
@@ -216,7 +212,7 @@ class ResumableClientConnection(AbstractConnection):
                             self.increase_recv_position(len(frame))
 
                         self._recv_publisher.on_next(frame)
-                    except (ConnectionError, OSError) as error:
+                    except self._expected_exceptions as error:
 
                         if self._state == ConnectionState.CONNECTED:
                             self._log.debug(

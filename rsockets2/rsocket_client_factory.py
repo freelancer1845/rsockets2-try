@@ -1,4 +1,5 @@
 from __future__ import annotations
+from time import sleep
 import rx
 import rx.core
 import rx.disposable
@@ -65,6 +66,14 @@ class RSocketClientFactory(object):
         return self.build()
 
     def _create_single_shot_client(self) -> typing.Union[RMessageClient, RSocketClient]:
+        def open():
+            try:
+                client.open()
+            except Exception as err:
+                self.log.warn(
+                    'Opening Connection failed... Delaying 5 seconds')
+                sleep(5.0)
+                raise err
         if self._message_client == True:
             self.log.debug(
                 "Creating RMessageClient. Config: {}".format(self._config))
@@ -72,7 +81,7 @@ class RSocketClientFactory(object):
                                     self._config,
                                     self._scheduler)
             self.log.debug("RMessageClient created. Opening connection")
-            client.open()
+            open()
             self.log.debug("RMessageClient socket opened")
             return client
 
@@ -82,7 +91,7 @@ class RSocketClientFactory(object):
             client = RSocketClient(
                 self._config, self._transport, self._scheduler)
 
-            client.open()
+            open()
             return client
 
     def _create_auto_reconnecting_client(self) -> Observable[RSocketClient]:
@@ -110,7 +119,8 @@ class RSocketClientFactory(object):
                 op.do_action(on_completed=lambda: self.log.debug(
                     "Trying to reconnect to rsocket server in 5 seconds...")),
                 op.delay(op.timedelta(seconds=5)),
-                op.repeat()
+                op.repeat(),
+                op.retry()
             ).subscribe()
 
             return disposable
