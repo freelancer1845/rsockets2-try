@@ -4,7 +4,7 @@ setup(
     name='rsockets2',         # How you named your package folder (MyLib)
     # Chose the same as "name"
     packages=find_packages(include=['rsockets2', 'rsockets2.*']),
-    version='0.2',      # Start with a small number and increase it with every change you make
+    version='0.3',      # Start with a small number and increase it with every change you make
     # Chose a license from here: https://help.github.com/articles/licensing-a-repository
     license='apache-2.0',
     # Give a short description about your library
