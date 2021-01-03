@@ -21,7 +21,7 @@ class RTcpSocket(Socket_ABC):
 
     def __init__(self, resume_support):
         super().__init__(resume_support)
-        self._log = logging.getLogger("rsockets2.socket.tcp")
+        self._log = logging.getLogger("rsockets2.socket.RTcpSocket")
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.recv_thread = threading.Thread(
             name="RTcpReceiver", daemon=True, target=self._recvloop)
