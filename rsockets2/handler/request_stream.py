@@ -58,6 +58,7 @@ def request_stream_pipe(stream_id: int, connection: AbstractConnection):
         op.take_until(
             connection.destroy_observable()
         ),
+        op.filter(lambda value: value != None),
         op.do_action(on_next=on_next, on_error=on_error,
                      on_completed=on_completed)
     )
