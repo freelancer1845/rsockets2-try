@@ -13,3 +13,14 @@ from .resume import ResumeFrame, ResumeOkFrame
 
 PositionRelevantFrames = (RequestResponse, RequestFNF, RequestStream,
                           RequestNFrame, CancelFrame, ErrorFrame, Payload)
+
+
+
+
+
+FRAME_MAP = {
+    0x01: SetupFrame,
+    0x02: Payload,
+    0x0B: ErrorFrame,
+}
+

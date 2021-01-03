@@ -1,143 +1,192 @@
-from .common import FrameType, read_meta_data_length
-import struct
-from .frame_abc import Frame_ABC
-from abc import abstractmethod
-from ..common import RSocketConfig
+from typing import Optional, Tuple
+
+from rsockets2.frames.frame_header import FrameHeader
 
 
-class SetupFrame(Frame_ABC):
+class SetupFrame(FrameHeader):
 
-    def __init__(self):
-        super().__init__()
+    @staticmethod
+    def is_ignore_if_not_understood(buffer: bytes) -> bool:
+        raise NotImplementedError('SetupFrames cannot be ignored')
 
-        self.major_version = 0
-        self.minor_version = 0
-        self.keepalive_time = 0
-        self.max_lifetime = 0
-        self.resume_identification_token = None
-        self.meta_data_mime_type = bytes(0)
-        self.data_mime_type = bytes(0)
-        self.meta_data = None
-        self.setup_payload = bytes(0)
-        self.honors_lease = False
+    @staticmethod
+    def is_resume_enable(buffer: bytes) -> bool:
+        return SetupFrame.stream_id_type_and_flags(buffer)[2] << 7
 
-    @classmethod
-    def from_config(cls, config: RSocketConfig):
-        frame = SetupFrame()
-        frame.major_version = config.major_version
-        frame.minor_version = config.minor_version
-        frame.keepalive_time = config.keepalive_time
-        frame.max_lifetime = config.max_liftime
-        frame.meta_data_mime_type = config.meta_data_mime_type
-        frame.data_mime_type = config.data_mime_type
-        frame.honors_lease = config.honors_lease
+    @staticmethod
+    def honors_lease(buffer: bytes) -> bool:
+        return SetupFrame.stream_id_type_and_flags(buffer)[2] << 6
 
-        return frame
+    @staticmethod
+    def major_version(buffer: bytes) -> int:
+        return SetupFrame._decode_short(buffer, 6)[0]
 
-    @classmethod
-    def from_data(cls, stream_id: int, flags: int, full_data: bytes):
-        frame = SetupFrame()
+    @staticmethod
+    def minor_version(buffer: bytes) -> int:
+        return SetupFrame._decode_short(buffer, 8)[0]
 
-        data_read = 6
+    @staticmethod
+    def time_between_keepalive_frames(buffer: bytes) -> int:
+        return SetupFrame._decode_integer(buffer, 10)[0]
 
-        frame.major_version, frame.minor_version, frame.keepalive_time, frame.max_lifetime = struct.unpack_from(
-            ">HHII", full_data, data_read)
-        frame.keepalive_time &= 0x7FFFFFFF
-        frame.max_lifetime &= 0x7FFFFFFF
+    @staticmethod
+    def max_lifetime(buffer: bytes) -> int:
+        return SetupFrame._decode_integer(buffer, 14)[0]
 
-        data_read += 12
+    @staticmethod
+    def resume_identification_token_length(buffer: bytes) -> int:
+        return SetupFrame._decode_short(buffer, 18)[0]
 
-        if flags >> 6 & 1 == 1:
-            frame.honors_lease = True
+    @staticmethod
+    def resume_identification_token(buffer: bytes) -> bytes:
+        return buffer[20:(20 + SetupFrame.resume_identification_token_length(buffer))]
 
-        if flags >> 7 & 1 == 1:
-            token_length = struct.unpack_from(">H", full_data, data_read)
-            data_read += 2
-            frame.resume_identification_token = full_data[data_read:(
-                data_read + token_length)]
-            data_read += token_length
+    @staticmethod
+    def meta_data_mime_length_and_pos(buffer: bytes) -> Tuple[int, int]:
+        if SetupFrame.is_resume_enable(buffer):
+            start = 20 + \
+                SetupFrame.resume_identification_token_length(buffer)
+            return buffer[start], (start + 1)
+        else:
+            return buffer[18], 19
 
-        mime_length = int(full_data[data_read])
-        data_read += 1
-        frame.meta_data_mime_type = full_data[data_read:(
-            data_read + mime_length)].decode('US-ASCII')
-        data_read += mime_length
-        mime_length = int(full_data[data_read])
-        data_read += 1
-        frame.data_mime_type = full_data[data_read:(
-            data_read + mime_length)].decode('US-ASCII')
+    @staticmethod
+    def meta_data_encoding_mime_type(buffer: bytes) -> str:
+        length, start = SetupFrame.meta_data_mime_length_and_pos(buffer)
+        return buffer[start:(start + length)].decode('ASCII')
 
-        if flags >> 8 & 1 == 1:
-            metaDataLength = read_meta_data_length(full_data, data_read)
-            data_read += 3
-            frame.meta_data = full_data[data_read:(data_read + metaDataLength)]
-            data_read += metaDataLength
+    @staticmethod
+    def data_mime_length_and_pos(buffer: bytes) -> Tuple[int, int]:
+        meta_data_start = SetupFrame.meta_data_mime_length_and_pos(buffer)
+        start = meta_data_start[0] + meta_data_start[1]
+        return buffer[start], (start + 1)
 
-        frame.setup_payload = full_data[data_read:]
+    @staticmethod
+    def data_mime_encoding_mime_type(buffer: bytes) -> str:
+        length, start = SetupFrame.data_mime_length_and_pos(buffer)
+        return buffer[start:(start + length)].decode('ASCII')
 
-        return frame
+    @staticmethod
+    def metadata_and_payload_start(buffer: bytes) -> int:
+        length, start = SetupFrame.data_mime_length_and_pos(buffer)
+        return start + length
 
-    def __len__(self):
-        bufferSize = 18
-        if self.resume_identification_token != None:
-            bufferSize += 2
-            bufferSize += len(self.resume_identification_token)
-        bufferSize += 1  # Mime Length Meta
-        if self.meta_data_mime_type != None:
-            bufferSize += len(self.meta_data_mime_type)
-        bufferSize += 1  # Mime Length Data
-        if self.data_mime_type != None:
-            bufferSize += len(self.data_mime_type)
-        bufferSize += len(self.setup_payload)
-        return bufferSize
+    @staticmethod
+    def metadata_length_and_pos(buffer: bytes) -> Tuple[int, int]:
+        start = SetupFrame.metadata_and_payload_start(buffer)
+        length = SetupFrame.decode_24_bit(buffer, start)
+        return length, start + 3
 
-    def to_bytes(self):
-        bufferSize = len(self)
+    @staticmethod
+    def metadata(buffer: bytes) -> bytes:
+        length, start = SetupFrame.metadata_length_and_pos(buffer)
+        return buffer[start:(start + length)]
 
-        data = bytearray(bufferSize)
+    @staticmethod
+    def data_start(buffer: bytes) -> bytes:
+        if SetupFrame.is_metdata_present(buffer):
+            meta_data_start_length_and_start = SetupFrame.metadata_length_and_pos(
+                buffer)
+            start = meta_data_start_length_and_start[0] + \
+                meta_data_start_length_and_start[1]
+            return start
+        else:
+            return SetupFrame.metadata_and_payload_start(buffer)
 
-        struct.pack_into(">I", data, 0, 0)
-        dataWritten = 4
-        type_and_flags = FrameType.SETUP << 10
-        if self.meta_data != None:
-            type_and_flags |= (1 << 8)
-        if self.resume_identification_token != None:
-            type_and_flags |= (1 << 7)
-        if self.honors_lease == True:
-            type_and_flags |= (1 << 6)
-        type_and_flags = type_and_flags
-        struct.pack_into(">H", data, dataWritten, type_and_flags)
-        dataWritten += 2
-        struct.pack_into(">HH", data, dataWritten,
-                         self.major_version, self.minor_version)
-        dataWritten += 4
-        struct.pack_into(">II", data, dataWritten, self.keepalive_time,
-                         self.max_lifetime)
-        dataWritten += 8
+    @staticmethod
+    def data(buffer: bytes) -> bytes:
+        return buffer[SetupFrame.data_start(buffer):]
 
-        if self.resume_identification_token != None:
-            struct.pack_into(">H", data, dataWritten, len(
-                self.resume_identification_token))
-            dataWritten += 2
-            data[(dataWritten):(dataWritten + len(self.resume_identification_token))
-                 ] = self.resume_identification_token
-            dataWritten += len(self.resume_identification_token)
+    @staticmethod
+    def _set_major_version(buffer: bytearray, version: int):
+        SetupFrame._encode_short(buffer, 6, version)
 
-        mime_meta_data_length = len(self.meta_data_mime_type) & 0xFF
-        data[dataWritten] = mime_meta_data_length
-        dataWritten += 1
-        data[dataWritten:(dataWritten + mime_meta_data_length)
-             ] = self.meta_data_mime_type
-        dataWritten += mime_meta_data_length
+    @staticmethod
+    def _set_minor_version(buffer: bytearray, version: int):
+        SetupFrame._encode_short(buffer, 8, version)
 
-        mime_data_length = len(self.data_mime_type) & 0xFF
-        data[dataWritten] = mime_data_length
-        dataWritten += 1
-        data[dataWritten:(dataWritten + mime_data_length)
-             ] = self.data_mime_type
-        dataWritten += mime_data_length
+    @staticmethod
+    def _set_time_between_keepalive_frames(buffer: bytearray, time: int):
+        SetupFrame._encode_integer(buffer, 10, time)
 
-        data[dataWritten:(dataWritten + len(self.setup_payload))
-             ] = self.setup_payload
+    @staticmethod
+    def _set_max_lifetime(buffer: bytearray, time: int):
+        SetupFrame._encode_integer(buffer, 14, time)
 
-        return data
+    @staticmethod
+    def _set_resume_identification_token(buffer: bytearray, token: bytes):
+        SetupFrame._encode_short(buffer, 18, len(token))
+        buffer[20:(20 + len(token))] = token
+        buffer[5] |= (1 << 7)
+
+    @staticmethod
+    def _set_metadata_encoding_mime_type(buffer: bytearray, mime_type: str):
+        start = SetupFrame.meta_data_mime_length_and_pos(buffer)[1] - 1
+        buffer[start] = len(mime_type) & 0xFF
+        buffer[start + 1:len(mime_type) + 1 +
+               start] = mime_type.encode('ASCII')
+
+    @staticmethod
+    def _set_data_encoding_mime_type(buffer: bytearray, mime_type: str):
+        start = SetupFrame.data_mime_length_and_pos(buffer)[1] - 1
+        buffer[start] = len(mime_type) & 0xFF
+        buffer[start + 1:len(mime_type) + 1 +
+               start] = mime_type.encode('ASCII')
+
+    @staticmethod
+    def _set_metadata(buffer: bytearray, metadata: bytes):
+        start = SetupFrame.metadata_and_payload_start(buffer)
+
+        buffer[4] |= 1
+        SetupFrame.encode_24_bit(buffer, start, len(metadata))
+        buffer[(start + 3):(start + 3 + len(metadata))] = metadata
+
+    @staticmethod
+    def _set_data(buffer: bytearray, data: bytes):
+        if SetupFrame.is_metdata_present(buffer):
+            meta_length, meta_pos = SetupFrame.metadata_length_and_pos(buffer)
+            buffer[meta_pos + meta_length:] = data
+        else:
+            buffer[SetupFrame.metadata_and_payload_start(buffer):] = data
+
+    @staticmethod
+    def create_new(
+        major_version: int,
+        minor_version: int,
+        time_between_keepalive_frames: int,
+        max_lifetime: int,
+        resume_identification_token: Optional[bytes],
+        metadata_encoding_mime_type: str,
+        data_encoding_mime_type: str,
+        metadata: Optional[bytes],
+        data: Optional[bytes]
+    ) -> bytes:
+        buffer_size = 18
+        if (resume_identification_token != None):
+            buffer_size += 2 + len(resume_identification_token)
+        buffer_size += 1 + len(metadata_encoding_mime_type)
+        buffer_size += 1 + len(data_encoding_mime_type)
+        if metadata != None:
+            buffer_size += 3 + len(metadata)
+        if data != None:
+            buffer_size += len(data)
+
+        buffer = bytearray(buffer_size)
+
+        SetupFrame._set_major_version(buffer, major_version)
+        SetupFrame._set_minor_version(buffer, minor_version)
+        SetupFrame._set_time_between_keepalive_frames(
+            buffer, time_between_keepalive_frames)
+        SetupFrame._set_max_lifetime(buffer, max_lifetime)
+        if resume_identification_token != None:
+            SetupFrame._set_resume_identification_token(buffer,
+                                                        resume_identification_token)
+        SetupFrame._set_metadata_encoding_mime_type(buffer,
+                                                    metadata_encoding_mime_type)
+        SetupFrame._set_data_encoding_mime_type(
+            buffer, data_encoding_mime_type)
+        if metadata != None:
+            SetupFrame._set_metadata(buffer, metadata)
+        if data != None:
+            SetupFrame._set_data(buffer, data)
+        return buffer

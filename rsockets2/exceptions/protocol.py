@@ -1,0 +1,5 @@
+
+
+class ProtocolParseError(BaseException):
+
+    pass
