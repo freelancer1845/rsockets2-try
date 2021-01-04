@@ -52,9 +52,14 @@ def local_request_stream(
                 unsubscribe.on_next(0)
                 observer.on_error(RuntimeError(
                     f'RSocket Protocol Error. Request Response cannot handle FrameTyp: {frame_type}'))
-
-        disposable = con.listen_on_stream(stream_id).pipe(op.take_until(
-            unsubscribe)).subscribe(lambda x: map_next(x), lambda err: unsubscribe.on_next(0), lambda: unsubscribe.on_next(0))
+        if scheduler != None:
+            scheduling = op.observe_on(scheduler)
+        else:
+            scheduling = op.pipe()
+        disposable = con.listen_on_stream(stream_id).pipe(
+            scheduling,
+            op.take_until(unsubscribe)
+        ).subscribe(lambda x: map_next(x), lambda err: unsubscribe.on_next(0), lambda: unsubscribe.on_next(0))
 
         frame = RequestStreamFrame.create_new(
             stream_id,
@@ -70,7 +75,10 @@ def local_request_stream(
             con.queue_frame(frame)
 
         if requester != None:
-            requester.pipe(op.take_until(unsubscribe)).subscribe(
+            requester.pipe(
+                scheduling,
+                op.take_until(unsubscribe)
+            ).subscribe(
                 on_next=lambda x: request_more(x))
 
         return disposable
