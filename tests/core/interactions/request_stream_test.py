@@ -1,4 +1,5 @@
 
+from rsockets2.core.exceptions import ApplicationError
 from rsockets2.core.frames.request_n import RequestNFrame
 from rx.subject.subject import Subject
 from rsockets2.core.frames.error import ErrorCodes, ErrorFrame
@@ -8,7 +9,7 @@ from rsockets2.core.frames import RequestStreamFrame
 from tests.core.interactions.default_connection_mock import DefaultConnectionMock
 from rsockets2.core.interactions.request_stream import local_request_stream
 import unittest
-from threading import Event
+from threading import Event, Thread
 import rx.operators as op
 from rx.scheduler.threadpoolscheduler import ThreadPoolScheduler
 
@@ -219,8 +220,8 @@ class RequestStreamTest(unittest.TestCase):
 
         def handle_error(err):
 
-            self.assertEqual(
-                str(err), f'Error: {ErrorCodes.APPLICATION_ERROR}. Message: {error}')
+            self.assertEqual(type(err), ApplicationError)
+            self.assertEqual(str(err), 'Hello World')
             event.set()
 
         local_request_stream(connection, 1, [
@@ -229,3 +230,41 @@ class RequestStreamTest(unittest.TestCase):
 
         event.wait(1.0)
         self.assertTrue(event.is_set())
+
+    def test_premature_unsubscribe_send_cancel(self):
+        connection = DefaultConnectionMock()
+        metadata = "Metadata".encode('UTF-8')
+        data = "Data".encode('UTF-8')
+        cancel_received = Event()
+
+        def server_handle(request: bytes):
+            if FrameHeader.stream_id_type_and_flags(request)[1] == FrameType.REQUEST_STREAM:
+                self.assertTrue(
+                    RequestStreamFrame.initial_request_n(request), 2**31 - 1)
+                for i in range(100):
+                    ans = PayloadFrame.create_new(
+                        1, False, False, True, metadata, i.to_bytes(4, 'big'))
+                    connection.queue_on_receiver_stream(ans)
+                cmpl = PayloadFrame.create_new(
+                    1, False, True, False, None, None)
+                connection.queue_on_receiver_stream(cmpl)
+            elif FrameHeader.stream_id_type_and_flags(request)[1] == FrameType.CANCEL:
+                cancel_received.set()
+            else:
+                self.fail('Unexpected frame')
+
+        connection.listen_on_sender_stream(1).pipe(op.observe_on(ThreadPoolScheduler())).subscribe(
+            lambda x: server_handle(x))
+
+        event = Event()
+
+        local_request_stream(connection, 1, [
+            metadata, data
+        ]).pipe(
+            op.take(20)
+        ).subscribe(on_completed=lambda: event.set())
+
+        event.wait(1.0)
+        cancel_received.wait(1.0)
+        self.assertTrue(event.is_set())
+        self.assertTrue(cancel_received.is_set())

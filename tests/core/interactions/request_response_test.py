@@ -1,3 +1,4 @@
+from rsockets2.core.exceptions import ApplicationError
 from rsockets2.core.frames.error import ErrorCodes, ErrorFrame
 from rsockets2.core.frames.payload import PayloadFrame
 from rsockets2.core.frames.frame_header import FrameHeader, FrameType
@@ -113,9 +114,8 @@ class RequestResponseTest(unittest.TestCase):
         event = Event()
 
         def handle_error(err):
-
-            self.assertEqual(
-                str(err), f'Error: {ErrorCodes.APPLICATION_ERROR}. Message: {error}')
+            self.assertEqual(type(err), ApplicationError)
+            self.assertEqual(str(err), error)
             event.set()
 
         local_request_response(connection, 1, [

@@ -1,65 +1,96 @@
 
 
+from ast import Bytes
+import threading
+from rsockets2.core.exceptions import to_exception
 from rsockets2.core.frames.request_n import RequestNFrame
 from typing import Optional
 from rsockets2.core.frames.request_stream import RequestStreamFrame
 from rsockets2.core.frames.payload import PayloadFrame
 from rsockets2.core.frames.frame_header import FrameHeader, FrameType
 from rx.core.observer.observer import Observer
-from rx.core.typing import Observable
+from rx.core.typing import Observable, Scheduler
 from rx.subject.subject import Subject
 from rsockets2.core.types import RequestPayload, ResponsePayload
-from rsockets2.core.connection import default_connection
-from ..frames import ErrorFrame
+from rsockets2.core.connection import DefaultConnection
+from ..frames import ErrorFrame, CancelFrame
 import rx
 import rx.operators as op
 
 
+class RequestWithAnswerLogic(Observer):
+
+    def __init__(self, observer: Observer) -> None:
+        super().__init__()
+        self.observer = observer
+        self.unsubscribe = Subject()
+        self.complete = threading.Event()
+
+    def tear_down(self):
+        self.complete.set()
+        self.unsubscribe.on_next(0)
+
+    def on_next(self, data: bytes) -> None:
+        frame_type = FrameHeader.stream_id_type_and_flags(data)[1]
+
+        if frame_type == FrameType.PAYLOAD:
+            if PayloadFrame.next(data):
+                if PayloadFrame.is_metdata_present(data):
+                    self.observer.on_next((PayloadFrame.metadata(
+                        data), PayloadFrame.data(data)))
+                else:
+                    self.observer.on_next((None, PayloadFrame.data(data)))
+            if PayloadFrame.complete(data):
+                self.tear_down()
+                self.observer.on_completed()
+
+        elif frame_type == FrameType.CANCEL:
+            self.tear_down()
+            self.observer.on_error(ValueError('Stream Canceled by other side'))
+
+        elif frame_type == FrameType.ERROR:
+            self.tear_down()
+            self.observer.on_error(to_exception(data))
+
+        else:
+            self.tear_down()
+            self.observer.on_error(RuntimeError(
+                f'RSocket Protocol Error. Request Response cannot handle FrameTyp: {frame_type}'))
+
+    def on_error(self, error: Exception) -> None:
+        self.unsubscribe.on_next(0)
+        self.observer.on_error(error)
+
+    def on_completed(self) -> None:
+        self.unsubscribe.on_next(0)
+
+
+def optional_schedule_on(scheduler: Optional[Scheduler]):
+    if scheduler == None:
+        return op.pipe()
+    else:
+        return op.observe_on(scheduler)
+
+
 def local_request_stream(
-        con: default_connection,
+        con: DefaultConnection,
         stream_id: int,
         data: RequestPayload,
         initial_requests: int = 2 ** 31 - 1,
         requester: Optional[Observable[int]] = None) -> Observable[ResponsePayload]:
     def observable(observer: Observer, scheduler):
 
-        unsubscribe = Subject()
+        logic = RequestWithAnswerLogic(observer)
 
-        def map_next(data: bytes):
-            frame_type = FrameHeader.stream_id_type_and_flags(data)[1]
+        def cancel_signal():
+            if logic.complete.is_set() == False:
+                con.queue_frame(CancelFrame.create_new(stream_id))
 
-            if frame_type == FrameType.PAYLOAD:
-                if PayloadFrame.next(data):
-                    if PayloadFrame.is_metdata_present(data):
-                        observer.on_next((PayloadFrame.metadata(
-                            data), PayloadFrame.data(data)))
-                    else:
-                        observer.on_next((None, PayloadFrame.data(data)))
-                if PayloadFrame.complete(data):
-                    unsubscribe.on_next(0)
-                    observer.on_completed()
-
-            elif frame_type == FrameType.CANCEL:
-                unsubscribe.on_next(0)
-                observer.on_error(ValueError('Stream Canceled by other side'))
-
-            elif frame_type == FrameType.ERROR:
-                unsubscribe.on_next(0)
-                observer.on_error(ValueError(
-                    f'Error: {ErrorFrame.error_code(data)}. Message: {ErrorFrame.error_data(data)}'))
-
-            else:
-                unsubscribe.on_next(0)
-                observer.on_error(RuntimeError(
-                    f'RSocket Protocol Error. Request Response cannot handle FrameTyp: {frame_type}'))
-        if scheduler != None:
-            scheduling = op.observe_on(scheduler)
-        else:
-            scheduling = op.pipe()
         disposable = con.listen_on_stream(stream_id).pipe(
-            scheduling,
-            op.take_until(unsubscribe)
-        ).subscribe(lambda x: map_next(x), lambda err: unsubscribe.on_next(0), lambda: unsubscribe.on_next(0))
+            optional_schedule_on(scheduler),
+            op.take_until(logic.unsubscribe),
+            op.finally_action(lambda: cancel_signal())
+        ).subscribe(logic)
 
         frame = RequestStreamFrame.create_new(
             stream_id,
@@ -76,11 +107,10 @@ def local_request_stream(
 
         if requester != None:
             requester.pipe(
-                scheduling,
-                op.take_until(unsubscribe)
+                optional_schedule_on(scheduler),
+                op.take_until(logic.unsubscribe)
             ).subscribe(
                 on_next=lambda x: request_more(x))
-
         return disposable
 
     return rx.create(observable)
