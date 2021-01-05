@@ -1,0 +1,9 @@
+
+
+WELLKNOWN_AUTHENTICATION_TYPES = {
+    "simple": 0x00,
+    "bearer": 0x01
+}
+
+WELLKNOWN_AUTHENTICATION_TYPES_REVERSE = {
+    v: k for k, v in WELLKNOWN_AUTHENTICATION_TYPES.items()}

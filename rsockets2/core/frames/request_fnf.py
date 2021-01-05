@@ -1,3 +1,4 @@
+from rsockets2.core.types import RequestPayloadTypes
 from .segmented_frame import FrameSegments
 from typing import Optional
 from .data_frame import DataFrame
@@ -14,7 +15,7 @@ class RequestFNFFrame(DataFrame):
         return DataFrame.data(buffer, 6)
 
     @staticmethod
-    def create_new(stream_id: int, fragment_follows: bool, metadata: Optional[bytes], data: Optional[bytes]) -> FrameSegments:
+    def create_new(stream_id: int, fragment_follows: bool, metadata: RequestPayloadTypes, data: RequestPayloadTypes) -> FrameSegments:
         if metadata != None:
             header = bytearray(9)
             DataFrame._set_metadata_length(header, len(metadata), 6)

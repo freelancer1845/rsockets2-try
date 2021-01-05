@@ -1,11 +1,15 @@
 
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
+from rsockets2.core.frames.segmented_frame import FrameSegments
 from rx.core.typing import Observable
 
+RequestPayloadTypes = Optional[Union[bytes,
+                                     bytearray, memoryview, FrameSegments]]
+
 ResponsePayload = Tuple[Optional[memoryview], Optional[memoryview]]
-RequestPayload = Tuple[Optional[bytes], Optional[bytes]]
+RequestPayload = Tuple[RequestPayloadTypes, RequestPayloadTypes]
 
 
 class RSocketHandler():

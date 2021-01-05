@@ -1,3 +1,4 @@
+from rsockets2.core.types import RequestPayloadTypes
 from typing import Optional
 
 from .data_frame import DataFrame
@@ -27,8 +28,8 @@ class RequestStreamFrame(DataFrame):
         stream_id: int,
         fragment_follows: bool,
         initial_request_n: int,
-        metadata: Optional[bytes],
-        data: Optional[bytes]
+        metadata: RequestPayloadTypes,
+        data: RequestPayloadTypes
     ) -> FrameSegments:
         if metadata != None:
             header = bytearray(13)
