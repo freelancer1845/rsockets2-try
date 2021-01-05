@@ -1,6 +1,7 @@
 
 
 from typing import Union
+import pickle
 
 
 class FrameSegments(object):
@@ -10,8 +11,11 @@ class FrameSegments(object):
         self._length = 0
 
     def append_fragment(self, data: Union[bytes, bytearray]) -> int:
-        self._fragments.append(data)
-        self._length += len(data)
+        if isinstance(data, memoryview):
+            self._fragments.append(data)
+        else:
+            self._fragments.append(data)
+            self._length += len(data)
 
     def __iter__(self):
         return iter(self._fragments)
@@ -30,3 +34,9 @@ class FrameSegments(object):
 
     def segments(self) -> int:
         return len(self._fragments)
+
+    @property
+    def length(self) -> int:
+        return self._length
+
+

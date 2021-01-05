@@ -34,7 +34,7 @@ class RequestStreamTest(unittest.TestCase):
 
         event = Event()
 
-        local_request_stream(connection, 1, [
+        local_request_stream(connection,  [
             metadata, data
         ]).subscribe(on_next=lambda x: self.fail(), on_error=lambda err: self.fail(str(err)), on_completed=lambda: event.set())
 
@@ -66,7 +66,7 @@ class RequestStreamTest(unittest.TestCase):
             self.assertEqual(response[1], data)
             payloadReceived.set()
 
-        local_request_stream(connection, 1, [
+        local_request_stream(connection,  [
             metadata, data
         ]).subscribe(on_next=lambda x: assert_payload(x), on_error=lambda err: self.fail(str(err)), on_completed=lambda: event.set())
 
@@ -102,7 +102,7 @@ class RequestStreamTest(unittest.TestCase):
             self.assertEqual(response[1], data)
             payloadReceived.set()
 
-        local_request_stream(connection, 1, [
+        local_request_stream(connection,  [
             metadata, data
         ]).subscribe(on_next=lambda x: assert_payload(x), on_error=lambda err: self.fail(str(err)), on_completed=lambda: event.set())
 
@@ -140,7 +140,7 @@ class RequestStreamTest(unittest.TestCase):
             self.assertEqual(int.from_bytes(response[1], 'big'), current)
             current += 1
 
-        local_request_stream(connection, 1, [
+        local_request_stream(connection,  [
             metadata, data
         ]).subscribe(on_next=lambda x: assert_payload(x), on_error=lambda err: self.fail(str(err)), on_completed=lambda: event.set())
 
@@ -192,7 +192,7 @@ class RequestStreamTest(unittest.TestCase):
             if current < 100:
                 requester.on_next(1)
 
-        local_request_stream(connection, 1, [
+        local_request_stream(connection, [
             metadata, data
         ], 0, requester).subscribe(on_next=lambda x: assert_payload(x), on_error=lambda err: self.fail(str(err)), on_completed=lambda: event.set())
 
@@ -224,7 +224,7 @@ class RequestStreamTest(unittest.TestCase):
             self.assertEqual(str(err), 'Hello World')
             event.set()
 
-        local_request_stream(connection, 1, [
+        local_request_stream(connection, [
             metadata, data
         ]).subscribe(on_next=lambda x: self.fail('Should emit error'), on_error=lambda err: handle_error(err), on_completed=lambda: self.fail('Completed but should result in error'))
 
@@ -258,7 +258,7 @@ class RequestStreamTest(unittest.TestCase):
 
         event = Event()
 
-        local_request_stream(connection, 1, [
+        local_request_stream(connection, [
             metadata, data
         ]).pipe(
             op.take(20)

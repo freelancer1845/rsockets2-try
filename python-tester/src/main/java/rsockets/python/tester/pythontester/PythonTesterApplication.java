@@ -7,7 +7,12 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class PythonTesterApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(PythonTesterApplication.class, args);
+		try {
+			SpringApplication.run(PythonTesterApplication.class, args);
+			
+		} catch (Exception e) {
+			System.out.println(e);
+		}
 	}
 
 }

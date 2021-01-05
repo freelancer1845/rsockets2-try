@@ -26,7 +26,7 @@ class RequestResponseTest(unittest.TestCase):
 
         event = Event()
 
-        local_request_response(connection, 1, [
+        local_request_response(connection, [
             metadata, data
         ]).subscribe(on_next=lambda x: self.fail(), on_error=lambda err: self.fail(str(err)), on_completed=lambda: event.set())
 
@@ -55,7 +55,7 @@ class RequestResponseTest(unittest.TestCase):
             self.assertEqual(response[1], data)
             payloadReceived.set()
 
-        local_request_response(connection, 1, [
+        local_request_response(connection,  [
             metadata, data
         ]).subscribe(on_next=lambda x: assert_payload(x), on_error=lambda err: self.fail(str(err)), on_completed=lambda: event.set())
 
@@ -88,7 +88,7 @@ class RequestResponseTest(unittest.TestCase):
             self.assertEqual(response[1], data)
             payloadReceived.set()
 
-        local_request_response(connection, 1, [
+        local_request_response(connection, [
             metadata, data
         ]).subscribe(on_next=lambda x: assert_payload(x), on_error=lambda err: self.fail(str(err)), on_completed=lambda: event.set())
 
@@ -118,7 +118,7 @@ class RequestResponseTest(unittest.TestCase):
             self.assertEqual(str(err), error)
             event.set()
 
-        local_request_response(connection, 1, [
+        local_request_response(connection,  [
             metadata, data
         ]).subscribe(on_next=lambda x: self.fail('Should emit error'), on_error=lambda err: handle_error(err), on_completed=lambda: self.fail('Completed but should result in error'))
 

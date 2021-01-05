@@ -1,3 +1,4 @@
+from rsockets2.core.connection.default_connection import StreamIdGenerator
 from rsockets2.core.frames.segmented_frame import FrameSegments
 from rx.core.typing import Observable
 from rsockets2.core.connection import DefaultConnection
@@ -5,9 +6,12 @@ import rx.operators as op
 from rsockets2.core.frames import FrameHeader
 from rx.subject.subject import Subject
 
+
 class DefaultConnectionMock(DefaultConnection):
 
-    def __init__(self) -> None:
+    def __init__(self, server: bool = False) -> None:
+
+        self.stream_id_generator = StreamIdGenerator(server)
         self.receiver_stream = Subject()
         self.sender_stream = Subject()
 

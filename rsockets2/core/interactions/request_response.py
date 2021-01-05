@@ -10,26 +10,26 @@ from rsockets2.core.frames.payload import PayloadFrame
 from rsockets2.core.interactions.request_stream import (RequestWithAnswerLogic,
                                                         optional_schedule_on)
 from rsockets2.core.types import RequestPayload, ResponsePayload
-from rx.core.typing import Observable, Observer
+from rx.core.typing import Observable, Observer, Scheduler
 from rx.subject.subject import Subject
 
 from ..connection import DefaultConnection
 from ..frames import RequestResponseFrame
 
 
-def local_request_response(con: DefaultConnection, stream_id: int, data: RequestPayload) -> Observable[ResponsePayload]:
+def local_request_response(con: DefaultConnection, data: RequestPayload) -> Observable[ResponsePayload]:
     def observable(observer: Observer, scheduler):
 
         logic = RequestWithAnswerLogic(observer)
+        stream_id = con.stream_id_generator.new_stream_id()
 
-        def cancel_signal():
+        def finally_action():
+            con.stream_id_generator.free_stream_id(stream_id)
             if logic.complete.is_set() == False:
                 con.queue_frame(CancelFrame.create_new(stream_id))
-
         disposable = con.listen_on_stream(stream_id).pipe(
-            optional_schedule_on(scheduler),
             op.take_until(logic.unsubscribe),
-            op.finally_action(lambda: cancel_signal())
+            op.finally_action(lambda: finally_action())
         ).subscribe(logic)
 
         frame = RequestResponseFrame.create_new(

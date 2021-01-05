@@ -74,22 +74,22 @@ def optional_schedule_on(scheduler: Optional[Scheduler]):
 
 def local_request_stream(
         con: DefaultConnection,
-        stream_id: int,
         data: RequestPayload,
         initial_requests: int = 2 ** 31 - 1,
         requester: Optional[Observable[int]] = None) -> Observable[ResponsePayload]:
     def observable(observer: Observer, scheduler):
 
         logic = RequestWithAnswerLogic(observer)
+        stream_id = con.stream_id_generator.new_stream_id()
 
-        def cancel_signal():
+        def finally_action():
             if logic.complete.is_set() == False:
                 con.queue_frame(CancelFrame.create_new(stream_id))
+            con.stream_id_generator.free_stream_id(stream_id)
 
         disposable = con.listen_on_stream(stream_id).pipe(
-            optional_schedule_on(scheduler),
             op.take_until(logic.unsubscribe),
-            op.finally_action(lambda: cancel_signal())
+            op.finally_action(lambda: finally_action())
         ).subscribe(logic)
 
         frame = RequestStreamFrame.create_new(

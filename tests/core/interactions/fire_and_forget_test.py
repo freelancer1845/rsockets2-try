@@ -23,7 +23,7 @@ class FireAndForgetTests(unittest.TestCase):
         connection.listen_on_sender_stream(1).subscribe(
             lambda x: server_handle(x))
 
-        local_fire_and_forget(connection, 1, [
+        local_fire_and_forget(connection, [
             metadata, data
         ])
 
