@@ -1,13 +1,16 @@
 
 
+import threading
+from typing import Callable, Union
 import rx
 import rx.operators as op
+from rx.subject.asyncsubject import AsyncSubject
 from rsockets2.core.exceptions import to_exception
 from rsockets2.core.frames.cancel import CancelFrame
-from rsockets2.core.frames.error import ErrorFrame
+from rsockets2.core.frames.error import ErrorCodes, ErrorFrame
 from rsockets2.core.frames.frame_header import FrameHeader, FrameType
 from rsockets2.core.frames.payload import PayloadFrame
-from rsockets2.core.interactions.request_stream import (RequestWithAnswerLogic,
+from rsockets2.core.interactions.request_stream import (ForeignRequestLogic, RequestWithAnswerLogic,
                                                         optional_schedule_on)
 from rsockets2.core.types import RequestPayload, ResponsePayload
 from rx.core.typing import Observable, Observer, Scheduler
@@ -15,6 +18,29 @@ from rx.subject.subject import Subject
 
 from ..connection import DefaultConnection
 from ..frames import RequestResponseFrame
+
+
+
+def foreign_request_response(
+        connection: DefaultConnection,
+        request_frame: Union[bytes, bytearray, memoryview],
+        handler: Callable[[RequestPayload], Observable[ResponsePayload]]) -> Observable:
+
+    stream_id = FrameHeader.stream_id_type_and_flags(request_frame)[0]
+    if RequestResponseFrame.is_metdata_present(request_frame):
+        payload = (RequestResponseFrame.metadata(request_frame),
+                   RequestResponseFrame.data(request_frame))
+    else:
+        payload = (None, RequestResponseFrame.data(request_frame))
+
+    return handler(payload).pipe(
+        op.take_until(
+            connection.listen_on_stream(stream_id, FrameType.CANCEL)
+        ),
+        op.do(
+            ForeignRequestLogic(connection, stream_id)
+        )
+    )
 
 
 def local_request_response(con: DefaultConnection, data: RequestPayload) -> Observable[ResponsePayload]:

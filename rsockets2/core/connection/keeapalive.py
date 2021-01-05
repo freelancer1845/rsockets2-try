@@ -9,7 +9,7 @@ from ..frames import KeepaliveFrame
 import rx
 import rx.operators as op
 import time
-from queue import Queue
+from queue import Empty, Queue
 
 
 class KeepaliveSupport(object):
@@ -37,17 +37,20 @@ class KeepaliveSupport(object):
                         True, self._connection.stream_position.last_received_position, None)
                     self._connection.queue_frame(frame)
                     time_last_keepalive_send = now
-
-                opp_keepalive = self._opposite_keepalive_requests.get(False)
-                if KeepaliveFrame.respond_with_keepalive(opp_keepalive):
-                    answer = KeepaliveFrame.create_new(
-                        False, self._connection.stream_position.last_received_position, KeepaliveFrame.data(opp_keepalive))
-                    self._connection.queue_frame(answer)
-                time.sleep(self._keepalive_time * 1000. / 20.)
+                try:
+                    opp_keepalive = self._opposite_keepalive_requests.get(
+                        False)
+                    if KeepaliveFrame.respond_with_keepalive(opp_keepalive):
+                        answer = KeepaliveFrame.create_new(
+                            False, self._connection.stream_position.last_received_position, KeepaliveFrame.data(opp_keepalive))
+                        self._connection.queue_frame(answer)
+                except Empty:
+                    pass
+                time.sleep(self._keepalive_time / 20. / 1000.)
 
         except Exception as exception:
             self._log.debug(
-                "Keepalive support crashed. Exception: {}".format(exception))
+                "Keepalive support crashed. Exception: {}".format(str(exception)))
 
     def start(self):
         self._running = True

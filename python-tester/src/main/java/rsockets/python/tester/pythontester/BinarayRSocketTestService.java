@@ -29,8 +29,12 @@ public class BinarayRSocketTestService {
     protected void postConstruct() {
         var logger = (Logger) LoggerFactory.getLogger("io.rsocket.FrameLogger");
         logger.setLevel(Level.INFO);
-        disposable = RSocketServer.create(SocketAcceptor.with(new SocketHandler())).bind(TcpServerTransport.create(0))
-                .subscribe();
+        disposable = RSocketServer.create(new SocketAcceptor() {
+            @Override
+            public Mono<RSocket> accept(ConnectionSetupPayload setup, RSocket sendingSocket) {
+                return Mono.just(new SocketHandler(sendingSocket));
+            }
+        }).bind(TcpServerTransport.create(0)).subscribe();
 
     }
 
@@ -40,15 +44,52 @@ public class BinarayRSocketTestService {
     }
 
     public static final class SocketHandler implements RSocket {
+        private RSocket requester;
+
+        private Payload payloadToReplay;
+
+        public SocketHandler(RSocket sender) {
+            this.requester = sender;
+        }
+
         @Override
         public Mono<Payload> requestResponse(Payload payload) {
+            if (payload.hasMetadata() && payload.getMetadataUtf8().equals("Throw Error")) {
+                return Mono.error(new Exception(payload.getDataUtf8()));
+            }
+            if (payload.hasMetadata() && payload.getMetadataUtf8().equals("ReplayPayload")) {
+                return Mono.just(this.payloadToReplay);
+            }
             return Mono.just(payload);
         }
 
         @Override
         public Flux<Payload> requestStream(Payload payload) {
+            if (payload.hasMetadata() && payload.getMetadataUtf8().equals("Throw Error")) {
+                return Flux.error(new Exception(payload.getDataUtf8()));
+            }
             var count = payload.data().readInt();
             return Flux.interval(Duration.ofMillis(1)).take(count).map(c -> payload);
+        }
+
+        @Override
+        public Mono<Void> fireAndForget(Payload payload) {
+            if (payload.hasMetadata()) {
+                if (payload.getMetadataUtf8().equals("EchoRequestResponse")) {
+                    requester.requestResponse(payload).subscribe(answer -> {
+                        this.payloadToReplay = answer;
+                    });
+                }
+                if (payload.getMetadataUtf8().equals("EchoRequestStream")) {
+                    requester.requestStream(payload).subscribe(answer -> {
+                        this.payloadToReplay = answer;
+                    });
+                }
+                if (payload.getMetadataUtf8().equals("EchoRequestFNF")) {
+                    requester.fireAndForget(payload).subscribe();
+                }
+            }
+            return Mono.empty();
         }
     }
 

@@ -1,7 +1,7 @@
 from rx.subject.asyncsubject import AsyncSubject
 from rsockets2.core.frames.keepalive import KeepaliveFrame
 import threading
-from typing import Union
+from typing import Optional, Union
 from rsockets2.core.factories.setup_config import RSocketSetupConfig
 from rsockets2.core.frames.frame_header import FrameHeader
 from rx.core.observable.connectableobservable import ConnectableObservable
@@ -116,6 +116,9 @@ class DefaultConnection(object):
     def _handle_transport_error(self, err: Exception):
         self.log.error(f'Transport failed {str(err)}')
         self.dispose()
+        # On error is enough
+        self._transport.set_on_error_callback(
+            lambda x: self.log.debug(f'Additional errors: {str(x)}'))
 
     def _activate(self):
         self._transport.set_on_error_callback(self._handle_transport_error)
@@ -177,11 +180,19 @@ class DefaultConnection(object):
         self._transport.send_frame(frame)
         self.stream_position.add_send(frame)
 
-    def listen_on_stream(self, stream_id: int) -> Observable[bytes]:
-        return self._receiver.pipe(
-            op.filter(lambda frame: FrameHeader.stream_id_type_and_flags(
-                frame)[0] == stream_id)
-        )
+    def listen_on_stream(self, stream_id: Optional[int] = None, frame_type: Optional[FrameType] = None) -> Observable[bytes]:
+        if stream_id == None:
+            return self._receiver.pipe(
+                op.filter(lambda frame: FrameHeader.stream_id_type_and_flags(
+                    frame)[1] == frame_type)
+            )
+        elif frame_type == None:
+            return self._receiver.pipe(
+                op.filter(lambda frame: FrameHeader.stream_id_type_and_flags(
+                    frame)[0] == stream_id)
+            )
+        else:
+            return self._receiver
 
     def dispose(self):
         # self._disposer.on_next(0)

@@ -1,3 +1,4 @@
+from rsockets2.core.types import RSocketHandler, RequestPayload
 from rsockets2.core.connection.default_connection import DefaultConnection
 from rsockets2.core.connection.keeapalive import KeepaliveSupport
 from rsockets2.core.factories.setup_config import RSocketSetupConfig
@@ -13,9 +14,25 @@ import logging
 log = logging.getLogger('rsockets2.core.factories.RSocketClient')
 
 
+class NoopHandler(RSocketHandler):
+
+    def on_request_channel(self):
+        raise NotImplementedError('Cannot Handle')
+
+    def on_request_fnf(self, payload: RequestPayload) -> None:
+        pass
+
+    def on_request_response(self, payload):
+        raise NotImplementedError('Cannot Handle')
+
+    def on_request_stream(self, payload: RequestPayload, initial_requests: int, requests: Observable[int]):
+        raise NotImplementedError('Cannot Handle')
+
+
 def rsocket_client(
     transport: AbstractTransport,
     setup_config: RSocketSetupConfig,
+    handler: RSocketHandler = NoopHandler(),
     scheduler: Scheduler = ThreadPoolScheduler(5)
 ) -> Observable[RSocket]:
 
@@ -29,6 +46,7 @@ def rsocket_client(
                 connection, setup_config.time_between_keepalive, setup_config.max_lifetime)
             rsocket = RSocket(
                 connection,
+                handler,
                 keepalive,
                 scheduler,
                 False)

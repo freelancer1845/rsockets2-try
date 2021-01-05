@@ -36,6 +36,11 @@ class TcpClientTransport(AbstractTransport):
     def handle(self, socket):
         self._socket = socket
 
+    def _handle_error(self, error):
+        if self._running == True:
+            self._running = False
+            self._error_callback(error)
+
     def open(self):
         self._recv_thread = threading.Thread(
             name="TcpClientTransportRecv", daemon=True, target=self._recv_loop)
@@ -60,10 +65,9 @@ class TcpClientTransport(AbstractTransport):
     def set_on_error_callback(self, cb: Callable[[Exception], None]):
         self._error_callback = cb
 
-    @staticmethod
-    def _send_loop(socket, queue, error_callback):
+    def _send_loop(self, socket, queue, error_callback):
         try:
-            while True:
+            while self._running:
                 try:
                     frame = queue.get(True, timeout=0.5)
                 except Empty:
@@ -86,7 +90,7 @@ class TcpClientTransport(AbstractTransport):
                         if datasend == segment_length:
                             break
         except Exception as err:
-            error_callback(err)
+            self._handle_error(err)
 
     def _recv_loop(self):
         data_read = 0
@@ -127,4 +131,4 @@ class TcpClientTransport(AbstractTransport):
                                 current_frame = bytearray(current_frame_length)
                             break
         except Exception as err:
-            self._error_callback(err)
+            self._handle_error(err)

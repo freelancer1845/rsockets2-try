@@ -1,8 +1,30 @@
 
 
+from typing import Callable, Union
 from rsockets2.core.types import RequestPayload
 from rsockets2.core.connection import DefaultConnection
 from rsockets2.core.frames import RequestFNFFrame
+
+import logging
+
+
+log = logging.getLogger(__name__)
+
+
+def foreign_fire_and_forget(request_frame: Union[bytes, bytearray, memoryview], handler: Callable[[RequestPayload], None]):
+    try:
+        if RequestFNFFrame.is_metdata_present(request_frame):
+            handler(
+                (RequestFNFFrame.metadata(request_frame),
+                 RequestFNFFrame.data(request_frame))
+            )
+        else:
+            handler(
+                (None,
+                 RequestFNFFrame.data(request_frame))
+            )
+    except Exception as err:
+        log.error('Error while handling FNF Request', exc_info=True)
 
 
 def local_fire_and_forget(con: DefaultConnection, data: RequestPayload):

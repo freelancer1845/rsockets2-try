@@ -1,10 +1,13 @@
 
 
 from ast import Bytes
+from rsockets2.core.frames.error import ErrorCodes
+
+from rx.subject.asyncsubject import AsyncSubject
 import threading
 from rsockets2.core.exceptions import to_exception
 from rsockets2.core.frames.request_n import RequestNFrame
-from typing import Optional
+from typing import Callable, Optional, Union
 from rsockets2.core.frames.request_stream import RequestStreamFrame
 from rsockets2.core.frames.payload import PayloadFrame
 from rsockets2.core.frames.frame_header import FrameHeader, FrameType
@@ -16,6 +19,52 @@ from rsockets2.core.connection import DefaultConnection
 from ..frames import ErrorFrame, CancelFrame
 import rx
 import rx.operators as op
+
+
+class ForeignRequestLogic(Observer):
+
+    def __init__(self, con: DefaultConnection, stream_id: int) -> None:
+        super().__init__()
+        self.con = con
+        self.stream_id = stream_id
+        self._canceled = False
+        self.complete = AsyncSubject()
+
+    def on_next(self, value: ResponsePayload) -> None:
+        if self.canceled:
+            return
+        self.con.queue_frame(
+            PayloadFrame.create_new(
+                self.stream_id, False, False, True, *value)
+        )
+
+    def on_error(self, error: Exception) -> None:
+        if self.canceled:
+            return
+        self.con.queue_frame(
+            ErrorFrame.create_new(
+                self.stream_id, ErrorCodes.APPLICATION_ERROR, str(error)
+            )
+        )
+
+    def on_completed(self) -> None:
+        if self.canceled:
+            return
+        self.con.queue_frame(
+            PayloadFrame.create_new(
+                self.stream_id, False, True, False, None, None)
+        )
+        self.complete.on_next(0)
+        self.complete.on_completed()
+
+    def cancel(self):
+        self._canceled = True
+        self.complete.on_next(0)
+        self.complete.on_completed()
+
+    @property
+    def canceled(self) -> bool:
+        return self._canceled
 
 
 class RequestWithAnswerLogic(Observer):
@@ -70,6 +119,35 @@ def optional_schedule_on(scheduler: Optional[Scheduler]):
         return op.pipe()
     else:
         return op.observe_on(scheduler)
+
+
+def foreign_request_stream(
+        connection: DefaultConnection,
+        request_frame: Union[bytes, bytearray, memoryview],
+        handler: Callable[[RequestPayload, int, Observable[int]], Observable[ResponsePayload]]) -> Observable:
+
+    stream_id = FrameHeader.stream_id_type_and_flags(request_frame)[0]
+    if RequestStreamFrame.is_metdata_present(request_frame):
+        payload = (RequestStreamFrame.metadata(request_frame),
+                   RequestStreamFrame.data(request_frame))
+    else:
+        payload = (None, RequestStreamFrame.data(request_frame))
+    logic = ForeignRequestLogic(connection, stream_id)
+    requester = connection.listen_on_stream(stream_id, FrameType.REQUEST_N).pipe(
+        op.take_until(logic.complete),
+        op.map(lambda frame: RequestNFrame.request_n(frame)),
+        op.replay()
+    )
+    return handler(payload, RequestStreamFrame.initial_request_n(request_frame), requester).pipe(
+
+        op.take_until(
+            connection.listen_on_stream(stream_id, FrameType.CANCEL).pipe(
+                op.do_action(lambda x: logic.cancel()))
+        ),
+        op.do(
+            logic
+        )
+    )
 
 
 def local_request_stream(

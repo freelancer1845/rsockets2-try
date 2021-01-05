@@ -4,16 +4,16 @@ from rsockets2.core.connection.keeapalive import KeepaliveSupport
 from typing import Optional
 from rsockets2.core.frames.request_response import RequestResponseFrame
 from rsockets2.core.connection.default_connection import DefaultConnection
-from .interactions.request_response import local_request_response
-from .interactions.request_stream import local_request_stream
-from .interactions.fire_and_forget import local_fire_and_forget
+from .interactions.request_response import foreign_request_response, local_request_response
+from .interactions.request_stream import local_request_stream, foreign_request_stream
+from .interactions.fire_and_forget import foreign_fire_and_forget, local_fire_and_forget
 import rx
 from threading import RLock
 import rx.operators as op
 from rx.subject.asyncsubject import AsyncSubject
-from rx.core.typing import Observable, Scheduler
+from rx.core.typing import Observable, OnNext, Scheduler
 
-from .types import RequestPayload, ResponsePayload
+from .types import RSocketHandler, RequestPayload, ResponsePayload
 
 
 class RSocket(object):
@@ -24,6 +24,7 @@ class RSocket(object):
 
     def __init__(self,
                  connection: DefaultConnection,
+                 handler: RSocketHandler,
                  keepalive: KeepaliveSupport,
                  scheduler: Scheduler,
                  is_server_socket: bool) -> None:
@@ -34,13 +35,20 @@ class RSocket(object):
         self._keepalive = keepalive
         self._connection_level_error = AsyncSubject()
         self._dispose = AsyncSubject()
+        self._setup_handler(handler)
 
     def request_response(self, data: RequestPayload) -> Observable[ResponsePayload]:
+
+        finish_signal = {}
         return rx.merge(
             local_request_response(self._con, data).pipe(op.observe_on(self._scheduler),
-                                                         op.subscribe_on(self._scheduler)),
+                                                         op.subscribe_on(
+                                                             self._scheduler),
+                                                         op.concat(
+                                                             rx.of(finish_signal))
+                                                         ),
             self._connection_level_error
-        )
+        ).pipe(op.take_while(lambda x: x is not finish_signal))
 
     def request_fnf(self, data: RequestPayload) -> None:
         local_fire_and_forget(
@@ -48,16 +56,44 @@ class RSocket(object):
 
     def request_stream(self, data: RequestPayload, initial_requests: int = 2 ** 31 - 1,
                        requester: Optional[Observable[int]] = None) -> Observable[ResponsePayload]:
+        finish_signal = {}
         return rx.merge(
             local_request_stream(self._con, data, initial_requests, requester).pipe(
                 op.observe_on(self._scheduler),
-                op.subscribe_on(self._scheduler)
+                op.subscribe_on(self._scheduler),
+                op.concat(
+                    rx.of(finish_signal))
             ),
             self._connection_level_error
-        )
+        ).pipe(op.take_while(lambda x: x is not finish_signal))
 
     def request_channel(self, data: RequestPayload) -> Observable[ResponsePayload]:
         pass
+
+    def _setup_handler(self, handler: RSocketHandler):
+        self._con.listen_on_stream(frame_type=FrameType.REQUEST_RESPONSE).pipe(
+            op.observe_on(self._scheduler),
+            op.flat_map(lambda request_frame: foreign_request_response(
+                self._con,
+                request_frame,
+                handler.on_request_response
+            ))
+        ).subscribe()
+        self._con.listen_on_stream(frame_type=FrameType.REQUEST_STREAM).pipe(
+            op.observe_on(self._scheduler),
+            op.flat_map(lambda request_frame: foreign_request_stream(
+                self._con,
+                request_frame,
+                handler.on_request_stream
+            ))
+        ).subscribe()
+        self._con.listen_on_stream(frame_type=FrameType.REQUEST_FNF).pipe(
+            op.observe_on(self._scheduler),
+            op.flat_map(lambda request_frame: foreign_fire_and_forget(
+                request_frame,
+                handler.on_request_fnf
+            ))
+        ).subscribe()
 
     def _tear_down(self):
         self._connection_level_error.on_next(ValueError('Connection Disposed'))
@@ -69,6 +105,9 @@ class RSocket(object):
     def _setup_keepalive(self, keepalive: KeepaliveSupport):
         self.log.debug('Setting up keepalive...')
         keepalive.start()
+
+    def dispose(self):
+        self._tear_down()
 
     @property
     def on_dispose(self) -> Observable[int]:
