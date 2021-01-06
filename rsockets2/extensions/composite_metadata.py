@@ -1,13 +1,46 @@
 
-from rsockets2.extensions.wellknown_mime_types import WELLKNOWN_MIME_TYPES, WELLKNOWN_MIME_TYPES_REVERSE
+from rsockets2.core.types import WriteBuffer
+from rsockets2.common import str_codec
+from rsockets2.extensions.wellknown_mime_types import WellknownMimeTypes
 from rsockets2.core.frames.segmented_frame import FrameSegments
 from typing import List, Tuple, Union
 from rsockets2.core.frames import FrameHeader
 
 
+def extend_composite_metadata(target: Union[WriteBuffer, FrameSegments], mime_type: Union[str, WellknownMimeTypes], payload: Union[bytes, bytearray, memoryview]) -> FrameSegments:
+    if isinstance(target, FrameSegments):
+        payload_length = len(payload)
+        if isinstance(mime_type, WellknownMimeTypes):
+            header = bytearray(4)
+            header[0] = (mime_type.value | 1 << 7)
+            FrameHeader.encode_24_bit(header, 1, payload_length)
+            target.append_fragment(
+                header)
+            target.append_fragment(payload)
+        else:
+            encoded_mime_type = mime_type.encode('ASCII')
+            header = bytearray(1 + len(encoded_mime_type) + 3)
+            header[0] = len(encoded_mime_type)
+            header[1:(1 + len(encoded_mime_type))] = encoded_mime_type
+            FrameHeader.encode_24_bit(
+                header, 1 + len(encoded_mime_type), payload_length)
+            target.append_fragment(header)
+            target.append_fragment(payload)
+    else:
+        segments = FrameSegments()
+        segments.append_fragment(target)
+        return extend_composite_metadata(segments, mime_type, payload)
+
+
 def encode_as_composite_metadata(
-        mime_types: Tuple[str],
+        mime_types: Tuple[Union[str, WellknownMimeTypes]],
         payloads: Tuple[Union[bytes, bytearray, memoryview]]) -> FrameSegments:
+
+    if isinstance(mime_types, str) or isinstance(mime_types, WellknownMimeTypes):
+        if isinstance(payloads, tuple) or isinstance(payloads, tuple):
+            raise ValueError('Either proied as tuple or as single value!')
+        mime_types = (mime_types,)
+        payloads = (payloads,)
 
     if len(mime_types) != len(payloads):
         raise ValueError(
@@ -17,23 +50,7 @@ def encode_as_composite_metadata(
     for i in range(len(mime_types)):
         mime_type = mime_types[i]
         payload = payloads[i]
-        payload_length = len(payload)
-        if mime_type in WELLKNOWN_MIME_TYPES:
-            header = bytearray(4)
-            header[0] = (WELLKNOWN_MIME_TYPES[mime_type] | 1 << 7)
-            FrameHeader.encode_24_bit(header, 1, payload_length)
-            fragments.append_fragment(
-                header)
-            fragments.append_fragment(payload)
-        else:
-            encoded_mime_type = mime_type.encode('ASCII')
-            header = bytearray(1 + len(encoded_mime_type) + 3)
-            header[0] = len(encoded_mime_type)
-            header[1:(1 + len(encoded_mime_type))] = encoded_mime_type
-            FrameHeader.encode_24_bit(
-                header, 1 + len(encoded_mime_type), payload_length)
-            fragments.append_fragment(header)
-            fragments.append_fragment(payload)
+        extend_composite_metadata(fragments, mime_type, payload)
 
     return fragments
 
@@ -49,10 +66,10 @@ def decode_composite_metadata(
         pos += 1
         mime_type = ""
         if id_or_length >> 7 & 1 == 1:
-            mime_type = WELLKNOWN_MIME_TYPES_REVERSE[id_or_length & 0x7F]
+            mime_type = WellknownMimeTypes(id_or_length & 0x7F).name
         else:
-            mime_type = memoryview(metadata)[pos:(
-                pos + id_or_length)].tobytes().decode('ASCII')
+            mime_type = str_codec.decode_ascii(
+                metadata[pos:(pos + id_or_length)])
             pos += id_or_length
         payload_length = FrameHeader.decode_24_bit(metadata, pos)
         pos += 3

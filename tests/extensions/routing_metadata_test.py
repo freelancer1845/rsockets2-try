@@ -1,7 +1,7 @@
 import unittest
 import random
 from rsockets2.extensions.routing_metadata import encode_route_tags, decode_route_tags
-
+import rsockets2.core.types
 
 class RoutingMetadataTests(unittest.TestCase):
 

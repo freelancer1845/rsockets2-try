@@ -1,6 +1,7 @@
 from typing import Optional, Tuple
 
 from .frame_header import FrameHeader
+from rsockets2.common import str_codec
 
 
 class SetupFrame(FrameHeader):
@@ -11,11 +12,11 @@ class SetupFrame(FrameHeader):
 
     @staticmethod
     def is_resume_enable(buffer: bytes) -> bool:
-        return SetupFrame.stream_id_type_and_flags(buffer)[2] << 7
+        return SetupFrame.stream_id_type_and_flags(buffer)[2] >> 7 & 1 == 1
 
     @staticmethod
     def honors_lease(buffer: bytes) -> bool:
-        return SetupFrame.stream_id_type_and_flags(buffer)[2] << 6
+        return SetupFrame.stream_id_type_and_flags(buffer)[2] >> 6 & 1 == 1
 
     @staticmethod
     def major_version(buffer: bytes) -> int:
@@ -53,7 +54,7 @@ class SetupFrame(FrameHeader):
     @staticmethod
     def meta_data_encoding_mime_type(buffer: bytes) -> str:
         length, start = SetupFrame.meta_data_mime_length_and_pos(buffer)
-        return buffer[start:(start + length)].decode('ASCII')
+        return str_codec.decode_ascii(buffer[start:(start + length)])
 
     @staticmethod
     def data_mime_length_and_pos(buffer: bytes) -> Tuple[int, int]:
@@ -64,7 +65,7 @@ class SetupFrame(FrameHeader):
     @staticmethod
     def data_mime_encoding_mime_type(buffer: bytes) -> str:
         length, start = SetupFrame.data_mime_length_and_pos(buffer)
-        return buffer[start:(start + length)].decode('ASCII')
+        return str_codec.decode_ascii(buffer[start:(start + length)])
 
     @staticmethod
     def metadata_and_payload_start(buffer: bytes) -> int:

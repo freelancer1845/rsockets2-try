@@ -1,10 +1,12 @@
 
 
-from typing import List
+from typing import List, Union
 
 
-def encode_route_tags(tags: List[str]) -> bytes:
+def encode_route_tags(tags: Union[str, List[str]]) -> bytes:
     buffer = bytearray()
+    if isinstance(tags, str):
+        tags = [tags]
 
     for tag in tags:
         encoded = tag.encode('UTF-8')

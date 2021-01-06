@@ -79,7 +79,7 @@ class TcpClientTransport(AbstractTransport):
                 frame_length_bytes[2] = frame_length & 0xFF
                 datasend = 0
                 while True:
-                    datasend += socket.send(frame_length_bytes[datasend:])
+                    datasend += socket.send(frame_length_bytes[datasend:3])
                     if datasend == 3:
                         break
                 for segment in frame:

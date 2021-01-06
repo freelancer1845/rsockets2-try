@@ -49,7 +49,10 @@ def rsocket_client(
                 handler,
                 keepalive,
                 scheduler,
-                False)
+                False,
+                setup_config.metadata_encoding_mime_type,
+                setup_config.data_encoding_mime_type
+            )
             observer.on_next(rsocket)
             observer.on_completed()
         except Exception as err:

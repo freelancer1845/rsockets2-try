@@ -23,6 +23,12 @@ class FrameSegments(object):
     def __iter__(self):
         return iter(self._fragments)
 
+    def __len__(self):
+        return self.length
+
+    def fragments(self) -> int:
+        return len(self._fragments)
+
     def __getitem__(self, key: int) -> Union[bytes, bytearray]:
         return self._fragments[key]
 

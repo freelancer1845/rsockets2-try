@@ -1,9 +1,8 @@
+import enum
+from rsockets2.common import WellknownEnum
 
 
-WELLKNOWN_AUTHENTICATION_TYPES = {
-    "simple": 0x00,
-    "bearer": 0x01
-}
+class WellknownAuthenticationTypes(WellknownEnum):
 
-WELLKNOWN_AUTHENTICATION_TYPES_REVERSE = {
-    v: k for k, v in WELLKNOWN_AUTHENTICATION_TYPES.items()}
+    Simple = 0x00
+    Bearer = 0x01

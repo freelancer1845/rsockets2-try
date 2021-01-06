@@ -27,8 +27,13 @@ class RSocket(object):
                  handler: RSocketHandler,
                  keepalive: KeepaliveSupport,
                  scheduler: Scheduler,
-                 is_server_socket: bool) -> None:
+                 is_server_socket: bool,
+                 metadata_mime_type: str,
+                 data_mime_type: str
+                 ) -> None:
         self._con = connection
+        self.metadata_mime_type = metadata_mime_type
+        self.data_mime_type = data_mime_type
         self._is_server_socket = is_server_socket
         self._scheduler = scheduler
         self._setup_keepalive(keepalive)
@@ -71,6 +76,7 @@ class RSocket(object):
         pass
 
     def _setup_handler(self, handler: RSocketHandler):
+        handler.set_rsocket(self)
         self._con.listen_on_stream(frame_type=FrameType.REQUEST_RESPONSE).pipe(
             op.observe_on(self._scheduler),
             op.flat_map(lambda request_frame: foreign_request_response(
