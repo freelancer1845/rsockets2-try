@@ -48,7 +48,7 @@ class NoopBackpressureSupport(BackpressureSupport):
         pass
 
     def close(self, close_action: Callable[[None], None]):
-        pass
+        close_action()
 
 
 class BufferBackpressureSupport(BackpressureSupport):

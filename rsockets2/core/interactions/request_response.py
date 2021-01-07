@@ -10,7 +10,7 @@ from rsockets2.core.frames.cancel import CancelFrame
 from rsockets2.core.frames.error import ErrorCodes, ErrorFrame
 from rsockets2.core.frames.frame_header import FrameHeader, FrameType
 from rsockets2.core.frames.payload import PayloadFrame
-from rsockets2.core.interactions.request_stream import (ForeignRequestLogic, RequestWithAnswerLogic,
+from rsockets2.core.interactions.request_stream import (ForeignRequestLogic, NoopBackpressureSupport, RequestWithAnswerLogic,
                                                         optional_schedule_on)
 from rsockets2.core.types import RequestPayload, ResponsePayload
 from rx.core.typing import Observable, Observer, Scheduler
@@ -38,7 +38,7 @@ def foreign_request_response(
             connection.listen_on_stream(stream_id, FrameType.CANCEL)
         ),
         op.do(
-            ForeignRequestLogic(connection, stream_id)
+            ForeignRequestLogic(connection, stream_id, NoopBackpressureSupport())
         )
     )
 

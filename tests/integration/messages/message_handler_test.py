@@ -28,7 +28,7 @@ class MessageHandlerTests(unittest.TestCase):
     dispose_event = threading.Event()
     complete_event = threading.Event()
 
-    def setUpa(self) -> None:
+    def setUp(self) -> None:
         self.dispose_event.clear()
         self.complete_event.clear()
         print("Starting test server")
@@ -52,7 +52,7 @@ class MessageHandlerTests(unittest.TestCase):
             if proc_status != None:
                 raise AssertionError('Failed to start test server')
 
-    def tearDowna(self) -> None:
+    def tearDown(self) -> None:
         print("Killing test server")
         MessageHandlerTests.proc.kill()
         while MessageHandlerTests.proc.poll() == None:
@@ -89,7 +89,7 @@ class MessageHandlerTests(unittest.TestCase):
     def test_request_stream(self):
         handler = RSocketMessageHandler()
         test_payload = 'Hello World'.encode('UTF-8')
-        request_count = 10000
+        request_count = 100
 
         def assert_route_called(payload, initial_requests, requests):
             self.assertEqual(test_payload, payload[1])
