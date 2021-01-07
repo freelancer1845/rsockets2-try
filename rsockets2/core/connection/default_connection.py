@@ -1,3 +1,4 @@
+from rsockets2.core.types import ReadBuffer
 from rx.subject.asyncsubject import AsyncSubject
 from rsockets2.core.frames.keepalive import KeepaliveFrame
 import threading
@@ -192,7 +193,12 @@ class DefaultConnection(object):
                     frame)[0] == stream_id)
             )
         else:
-            return self._receiver
+            def stream_filter(frame: ReadBuffer):
+                f_stream_id, f_frame_type, flags = FrameHeader.stream_id_type_and_flags(
+                    frame)
+                return f_stream_id == stream_id and f_frame_type == frame_type
+            return self._receiver.pipe(
+                op.filter(stream_filter))
 
     def dispose(self):
         # self._disposer.on_next(0)

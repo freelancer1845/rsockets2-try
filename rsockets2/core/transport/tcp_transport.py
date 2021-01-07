@@ -32,6 +32,7 @@ class TcpClientTransport(AbstractTransport):
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._socket.settimeout(5.0)
         self._socket.connect((host, port))
+        self._socket.settimeout(None)
 
     def handle(self, socket):
         self._socket = socket

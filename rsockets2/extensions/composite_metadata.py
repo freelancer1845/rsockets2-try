@@ -1,18 +1,23 @@
 
-from rsockets2.core.types import WriteBuffer
-from rsockets2.common import str_codec
-from rsockets2.extensions.wellknown_mime_types import WellknownMimeTypes
-from rsockets2.core.frames.segmented_frame import FrameSegments
 from typing import List, Tuple, Union
+
+from rsockets2.common import str_codec
 from rsockets2.core.frames import FrameHeader
+from rsockets2.core.frames.segmented_frame import FrameSegments
+from rsockets2.core.types import WriteBuffer
+from rsockets2.extensions.wellknown_mime_types import WellknownMimeType, WellknownMimeTypeList
 
 
-def extend_composite_metadata(target: Union[WriteBuffer, FrameSegments], mime_type: Union[str, WellknownMimeTypes], payload: Union[bytes, bytearray, memoryview]) -> FrameSegments:
+def extend_composite_metadata(target: Union[WriteBuffer, FrameSegments], mime_type: Union[str, WellknownMimeType], payload: Union[bytes, bytearray, memoryview]) -> FrameSegments:
     if isinstance(target, FrameSegments):
         payload_length = len(payload)
-        if isinstance(mime_type, WellknownMimeTypes):
+        if isinstance(mime_type, str):
+            wellknown = WellknownMimeTypeList.get_wellknown(mime_type)
+            if wellknown != None:
+                mime_type = wellknown
+        if isinstance(mime_type, WellknownMimeType):
             header = bytearray(4)
-            header[0] = (mime_type.value | 1 << 7)
+            header[0] = (mime_type.byte_value | 1 << 7)
             FrameHeader.encode_24_bit(header, 1, payload_length)
             target.append_fragment(
                 header)
@@ -33,10 +38,10 @@ def extend_composite_metadata(target: Union[WriteBuffer, FrameSegments], mime_ty
 
 
 def encode_as_composite_metadata(
-        mime_types: Tuple[Union[str, WellknownMimeTypes]],
+        mime_types: Tuple[Union[str, WellknownMimeType]],
         payloads: Tuple[Union[bytes, bytearray, memoryview]]) -> FrameSegments:
 
-    if isinstance(mime_types, str) or isinstance(mime_types, WellknownMimeTypes):
+    if isinstance(mime_types, str) or isinstance(mime_types, WellknownMimeType):
         if isinstance(payloads, tuple) or isinstance(payloads, tuple):
             raise ValueError('Either proied as tuple or as single value!')
         mime_types = (mime_types,)
@@ -66,7 +71,8 @@ def decode_composite_metadata(
         pos += 1
         mime_type = ""
         if id_or_length >> 7 & 1 == 1:
-            mime_type = WellknownMimeTypes(id_or_length & 0x7F).name
+            mime_type = WellknownMimeTypeList.get_wellknown(
+                id_or_length & 0x7F).str_value
         else:
             mime_type = str_codec.decode_ascii(
                 metadata[pos:(pos + id_or_length)])

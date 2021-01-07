@@ -1,5 +1,5 @@
 from rsockets2.extensions.composite_metadata import decode_composite_metadata, encode_as_composite_metadata
-from rsockets2.extensions.wellknown_mime_types import WellknownMimeTypes
+from rsockets2.extensions.wellknown_mime_types import WellknownMimeTypeList
 import unittest
 import random
 
@@ -7,8 +7,7 @@ import random
 class CompositeMetadataTests(unittest.TestCase):
 
     def test_encode_decode_wellknown(self):
-        mime_types = tuple(
-            map(lambda v: v.name, WellknownMimeTypes.__members__.values()))
+        mime_types = list(WellknownMimeTypeList.forward_map.keys())
         metadata = [random.randbytes(100) for x in mime_types]
 
         encoded = encode_as_composite_metadata(mime_types, metadata).reduce()
@@ -24,7 +23,7 @@ class CompositeMetadataTests(unittest.TestCase):
 
     def test_encoded_decode_not_wellknown(self):
         mime_types = tuple(
-            map(lambda v: v.name + "changed", WellknownMimeTypes.__members__.values()))
+            map(lambda v: v + "changed", WellknownMimeTypeList.forward_map.keys()))
         metadata = [random.randbytes(100) for x in mime_types]
 
         encoded = encode_as_composite_metadata(mime_types, metadata).reduce()

@@ -45,6 +45,8 @@ class RSocket(object):
     def request_response(self, data: RequestPayload) -> Observable[ResponsePayload]:
 
         finish_signal = {}
+        if isinstance(data, tuple) == False:
+            data = (None, data)
         return rx.merge(
             local_request_response(self._con, data).pipe(op.observe_on(self._scheduler),
                                                          op.subscribe_on(
@@ -56,12 +58,16 @@ class RSocket(object):
         ).pipe(op.take_while(lambda x: x is not finish_signal))
 
     def request_fnf(self, data: RequestPayload) -> None:
+        if isinstance(data, tuple) == False:
+            data = (None, data)
         local_fire_and_forget(
             self._con, data)
 
     def request_stream(self, data: RequestPayload, initial_requests: int = 2 ** 31 - 1,
                        requester: Optional[Observable[int]] = None) -> Observable[ResponsePayload]:
         finish_signal = {}
+        if isinstance(data, tuple) == False:
+            data = (None, data)
         return rx.merge(
             local_request_stream(self._con, data, initial_requests, requester).pipe(
                 op.observe_on(self._scheduler),

@@ -4,7 +4,7 @@ from rsockets2.core.frames.error import ErrorCodes, ErrorFrame
 from rsockets2.core.frames.frame_header import FrameHeader, FrameType
 
 
-class RSocketError(BaseException):
+class RSocketError(Exception):
 
     def __init__(self, *args: object) -> None:
         super().__init__(*args)

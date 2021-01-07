@@ -1,4 +1,4 @@
-from rsockets2.extensions.wellknown_mime_types import WellknownMimeTypes
+from rsockets2.extensions.wellknown_mime_types import WellknownMimeTypeList
 from rsockets2.extensions.stream_data_mime_types import encode_data_mime_types, decode_data_mime_types
 import unittest
 
@@ -7,8 +7,7 @@ class StreamDataMimeTypesTest(unittest.TestCase):
 
     def test_encode_decode_wellknown(self):
 
-        mime_types = tuple(
-            map(lambda v: v.name, WellknownMimeTypes.__members__.values()))
+        mime_types = list(WellknownMimeTypeList.forward_map.keys())
 
         encoded = encode_data_mime_types(mime_types)
 
@@ -19,7 +18,7 @@ class StreamDataMimeTypesTest(unittest.TestCase):
     def test_encode_decode_not_wellknown(self):
 
         mime_types = tuple(
-            map(lambda v: v.name + "changed", WellknownMimeTypes.__members__.values()))
+            map(lambda v: v + "changed", WellknownMimeTypeList.forward_map.keys()))
 
         encoded = encode_data_mime_types(mime_types)
 

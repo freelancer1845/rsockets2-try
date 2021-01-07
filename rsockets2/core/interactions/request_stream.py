@@ -1,6 +1,7 @@
 
 
 from ast import Bytes
+from queue import Queue
 from rsockets2.core.frames.error import ErrorCodes
 
 from rx.subject.asyncsubject import AsyncSubject
@@ -19,23 +20,98 @@ from rsockets2.core.connection import DefaultConnection
 from ..frames import ErrorFrame, CancelFrame
 import rx
 import rx.operators as op
+import enum
+from abc import ABC, abstractmethod
+
+
+class BackpressureSupport(ABC):
+
+    @abstractmethod
+    def queue(self, action: Callable[[None], None]):
+        pass
+
+    @abstractmethod
+    def request_n(self, n: int):
+        pass
+
+    @abstractmethod
+    def close(self, close_action: Callable[[None], None]):
+        pass
+
+
+class NoopBackpressureSupport(BackpressureSupport):
+
+    def queue(self, action: Callable[[None], None]):
+        action()
+
+    def request_n(self, n: int):
+        pass
+
+    def close(self, close_action: Callable[[None], None]):
+        pass
+
+
+class BufferBackpressureSupport(BackpressureSupport):
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._queue = Queue()
+        self._requests = 0
+        self._lock = threading.RLock()
+        self._close_action = None
+
+    def queue(self, action: Callable[[None], None]):
+        if self._close_action:
+            raise ValueError('BufferBackpressure already closed!')
+        self._queue.put(action)
+        self._wip()
+
+    def request_n(self, n: int):
+        with self._lock:
+            self._requests += n
+        self._wip()
+
+    def close(self, close_action: Callable[[None], None]):
+        with self._lock:
+            self._close_action = close_action
+        self._wip()
+
+    def _wip(self):
+        while True:
+            action = None
+            with self._lock:
+                if self._requests > 0 and self._queue.empty() == False:
+                    self._requests -= 1
+                    action = self._queue.get()
+            if action == None:
+                break
+            else:
+                action()
+        with self._lock:
+            if self._close_action != None and self._queue.empty():
+                self._close_action()
 
 
 class ForeignRequestLogic(Observer):
 
-    def __init__(self, con: DefaultConnection, stream_id: int) -> None:
+    def __init__(self, con: DefaultConnection, stream_id: int, backpressureSupport: BackpressureSupport) -> None:
         super().__init__()
         self.con = con
         self.stream_id = stream_id
         self._canceled = False
         self.complete = AsyncSubject()
+        self._backpressure_support = backpressureSupport
 
     def on_next(self, value: ResponsePayload) -> None:
         if self.canceled:
             return
-        self.con.queue_frame(
-            PayloadFrame.create_new(
-                self.stream_id, False, False, True, *value)
+        if isinstance(value, tuple) == False:
+            value = (None, value)
+        self._backpressure_support.queue(
+            lambda: self.con.queue_frame(
+                PayloadFrame.create_new(
+                    self.stream_id, False, False, True, *value)
+            )
         )
 
     def on_error(self, error: Exception) -> None:
@@ -50,17 +126,25 @@ class ForeignRequestLogic(Observer):
     def on_completed(self) -> None:
         if self.canceled:
             return
-        self.con.queue_frame(
-            PayloadFrame.create_new(
-                self.stream_id, False, True, False, None, None)
+
+        def close_action():
+            self.con.queue_frame(
+                PayloadFrame.create_new(
+                    self.stream_id, False, True, False, None, None)
+            )
+            self.complete.on_next(0)
+            self.complete.on_completed()
+        self._backpressure_support.close(
+            lambda: close_action()
         )
-        self.complete.on_next(0)
-        self.complete.on_completed()
 
     def cancel(self):
         self._canceled = True
         self.complete.on_next(0)
         self.complete.on_completed()
+
+    def request_n(self, n: int):
+        self._backpressure_support.request_n(n)
 
     @property
     def canceled(self) -> bool:
@@ -75,8 +159,9 @@ class RequestWithAnswerLogic(Observer):
         self.unsubscribe = Subject()
         self.complete = threading.Event()
 
-    def tear_down(self):
+    def tear_down(self, action):
         self.complete.set()
+        action()
         self.unsubscribe.on_next(0)
 
     def on_next(self, data: bytes) -> None:
@@ -90,21 +175,21 @@ class RequestWithAnswerLogic(Observer):
                 else:
                     self.observer.on_next((None, PayloadFrame.data(data)))
             if PayloadFrame.complete(data):
-                self.tear_down()
-                self.observer.on_completed()
+                self.tear_down(lambda: self.observer.on_completed())
 
         elif frame_type == FrameType.CANCEL:
             self.tear_down()
-            self.observer.on_error(ValueError('Stream Canceled by other side'))
+            self.tear_down(lambda: self.observer.on_error(
+                ValueError('Stream Canceled by other side')))
 
         elif frame_type == FrameType.ERROR:
-            self.tear_down()
-            self.observer.on_error(to_exception(data))
+
+            self.tear_down(lambda: self.observer.on_error(to_exception(data)))
 
         else:
-            self.tear_down()
-            self.observer.on_error(RuntimeError(
-                f'RSocket Protocol Error. Request Response cannot handle FrameTyp: {frame_type}'))
+
+            self.tear_down(lambda: self.observer.on_error(RuntimeError(
+                f'RSocket Protocol Error. Request Response cannot handle FrameTyp: {frame_type}')))
 
     def on_error(self, error: Exception) -> None:
         self.unsubscribe.on_next(0)
@@ -132,12 +217,21 @@ def foreign_request_stream(
                    RequestStreamFrame.data(request_frame))
     else:
         payload = (None, RequestStreamFrame.data(request_frame))
-    logic = ForeignRequestLogic(connection, stream_id)
+
+    backpressure_support = BufferBackpressureSupport()
+    backpressure_support.request_n(
+        RequestStreamFrame.initial_request_n(request_frame))
+
+    logic = ForeignRequestLogic(
+        connection, stream_id, backpressure_support)
+
     requester = connection.listen_on_stream(stream_id, FrameType.REQUEST_N).pipe(
         op.take_until(logic.complete),
         op.map(lambda frame: RequestNFrame.request_n(frame)),
+        op.do_action(lambda n: backpressure_support.request_n(n)),
         op.replay()
     )
+    requester.connect()
     return handler(payload, RequestStreamFrame.initial_request_n(request_frame), requester).pipe(
 
         op.take_until(
