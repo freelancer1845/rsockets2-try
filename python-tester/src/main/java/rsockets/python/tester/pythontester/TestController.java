@@ -20,4 +20,9 @@ public class TestController {
         return requester.route("/route/request-stream").data(data).retrieveFlux(byte[].class);
     }
 
+    @MessageMapping("/route/request-fnf")
+    public Mono<Void> requestFnf(byte[] data, RSocketRequester requester) {
+        return requester.route("/route/request-fnf").data(data).send();
+    }
+
 }

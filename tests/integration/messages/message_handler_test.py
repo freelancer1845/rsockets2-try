@@ -126,3 +126,31 @@ class MessageHandlerTests(unittest.TestCase):
             self.fail('Request Response did not complete')
         self.assertEqual(counter, request_count)
         rsocket.dispose()
+
+    def test_request_fnf(self):
+        handler = RSocketMessageHandler()
+        test_data = 'Hello World'.encode('UTF-8')
+
+        def assert_route_called(payload):
+            self.assertEqual(test_data, payload[1])
+            self.complete_event.set()
+        handler.router.register_request_fnf_route(
+            '/route/request-fnf', assert_route_called)
+        transport = TcpClientTransport()
+        transport.connect('localhost', self.TEST_PORT)
+        rsocket = rsocket_client(
+            transport=transport,
+            setup_config=RSocketSetupConfig(
+                time_between_keepalive=30000,
+                max_lifetime=100000,
+                metadata_encoding_mime_type='message/x.rsocket.composite-metadata.v0'),
+            handler=handler
+        ).run()
+        completed = threading.Event()
+        handler.request_response(
+            '/route/request-fnf', (None, test_data)
+        ).subscribe(on_error=lambda err: self.fail(str(err)), on_completed=lambda: completed.set())
+
+        if completed.wait(2.0) == False:
+            self.fail('Request FNF did not complete')
+        rsocket.dispose()

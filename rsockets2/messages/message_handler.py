@@ -21,7 +21,16 @@ class RSocketMessageHandler(RSocketHandler):
     tag_getter = None
 
     def on_request_fnf(self, payload: RequestPayload) -> None:
-        return super().on_request_fnf(payload)
+        tags = self.tag_getter(payload[0])
+        self.log.debug(
+            'Handling Request FNF with given route tags: ' + str(tags))
+        handler = self.router.get_request_fnf_routes(tags)
+        if len(handler) == 0:
+            pass
+        if len(handler) > 1:
+            self.log.warn(
+                'More than one request_stream handler was resolved for the given route tags')
+        handler[0](payload)
 
     def on_request_response(self, payload: RequestPayload) -> Observable[ResponsePayload]:
         def deferred(scheduler):
@@ -55,6 +64,10 @@ class RSocketMessageHandler(RSocketHandler):
 
     def on_request_channel(self):
         raise NotImplementedError()
+
+    def request_fnf(self, route_tags: List[str], payload: RequestPayload) -> None:
+        payload = self._encode_route_tags(route_tags, payload)
+        self.rsocket.request_fnf(payload)
 
     def request_response(self, route_tags: List[str], payload: RequestPayload) -> Observable[ResponsePayload]:
 
