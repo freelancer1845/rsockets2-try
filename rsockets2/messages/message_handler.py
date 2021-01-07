@@ -1,4 +1,5 @@
 
+from rsockets2.messages.fluent_request import FluentRequest
 from typing import List
 from rsockets2.core.rsocket import RSocket
 from rsockets2.messages.router import RSocketMessageRouter
@@ -128,3 +129,17 @@ class RSocketMessageHandler(RSocketHandler):
         else:
             raise RSocketProtocolError(
                 'RSocketMessageHandler only support "message/x.rsocket.routing" or "message/x.rsocket.composite.metadata"')
+
+    def route(self, route: str) -> FluentRequest:
+        if self.rsocket.metadata_mime_type == WellknownMimeTypeList.Message_XRsocketCompositeMetadataV0.str_value:
+            return FluentRequest(
+                _message_handler=self,
+                _route=route,
+                _freeze_metadata=False
+            )
+        else:
+            return FluentRequest(
+                _message_handler=self,
+                _route=route,
+                _freeze_metadata=True
+            )
