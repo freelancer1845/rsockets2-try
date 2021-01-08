@@ -7,7 +7,6 @@ import unittest
 import rx
 import rx.subject.subject
 
-from rsockets2.messages.fluent_request import FluentRequest
 from rsockets2.messages.message_handler import RSocketMessageHandler
 
 
