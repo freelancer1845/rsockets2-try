@@ -95,6 +95,7 @@ class DefaultConnection(object):
         self.stream_position = StreamPositionHolder()
         self._transport = transport
         self._disposer = AsyncSubject()
+        self._connection_error = AsyncSubject()
         self._scheduler = scheduler
 
         def receive_subscriber(observer: Observer, scheduler):
@@ -114,10 +115,16 @@ class DefaultConnection(object):
             self._disposer
         ).pipe(op.observe_on(self._scheduler), op.publish())
 
+    @property
+    def connection_error_obs(self) -> Observable[Exception]:
+        return self._connection_error
+
     def _handle_transport_error(self, err: Exception):
         self.log.error(f'Transport failed {str(err)}')
+        self._connection_error.on_next(err)
+        self._connection_error.on_completed()
         self.dispose()
-        # On error is enough
+        # One error is enough
         self._transport.set_on_error_callback(
             lambda x: self.log.debug(f'Additional errors: {str(x)}'))
 

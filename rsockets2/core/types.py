@@ -15,6 +15,9 @@ ReadBuffer = Union[bytes, memoryview, bytearray]
 RequestPayloadTypes = Optional[Union[ReadBuffer, 'FrameSegments']]
 
 ResponsePayload = Tuple[Optional[memoryview], Optional[memoryview]]
+'''
+    A request payload typically consists of [metadata, data]
+'''
 RequestPayload = Tuple[RequestPayloadTypes, RequestPayloadTypes]
 
 

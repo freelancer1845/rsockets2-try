@@ -32,6 +32,7 @@ class RSocket(object):
                  data_mime_type: str
                  ) -> None:
         self._con = connection
+        self._con.connection_error_obs.subscribe(lambda x: self.dispose())
         self.metadata_mime_type = metadata_mime_type
         self.data_mime_type = data_mime_type
         self._is_server_socket = is_server_socket
