@@ -47,7 +47,7 @@ def request_stream_pipe(stream_id: int, connection: AbstractConnection):
         answer.next_present = False
         answer.payload = bytes(0)
         answer.meta_data = bytes(0)
-        connection.send_frame(answer)
+        connection.queue_frame(answer)
 
     return rx.pipe(
         op.take_until(
