@@ -37,6 +37,7 @@ class TcpTransport(AbstractTransport):
             self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self._socket.settimeout(10.0)
             self._socket.connect((self._host, self._port))
+            self._socket.settimeout(None)
         except OSError as error:
             # wrap os error into connection error
             raise ConnectionError(error)
